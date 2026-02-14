@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   MousePointer2, 
   Hand, 
@@ -47,6 +47,8 @@ interface HeatmapZoneProps {
 
 const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const zoneRef = useRef<HTMLDivElement>(null);
 
   const colors = {
     low: { bg: 'bg-[#4262ff]', border: 'border-[#4262ff]', text: 'text-[#4262ff]', z: 'z-10' },
@@ -56,10 +58,25 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
 
   const style = colors[intensity];
 
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    
+    if (zoneRef.current) {
+      const rect = zoneRef.current.getBoundingClientRect();
+      const tooltipHeight = 180;
+      const headerHeight = 64; // Approximate Miro header height
+      
+      // Check if there's enough space above (considering header)
+      const spaceAbove = rect.top - headerHeight;
+      setTooltipPosition(spaceAbove < tooltipHeight ? 'bottom' : 'top');
+    }
+  };
+
   return (
     <div 
+      ref={zoneRef}
       className={cn("absolute group cursor-pointer", className, style.z)}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Heatmap Blob with Outline */}
@@ -80,10 +97,15 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
       <AnimatePresence>
         {isHovered && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute left-1/2 bottom-full mb-4 w-64 -translate-x-1/2 z-50"
+            exit={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              "absolute left-1/2 w-64 -translate-x-1/2 pointer-events-none",
+              tooltipPosition === 'top' ? "bottom-full mb-4" : "top-full mt-4"
+            )}
+            style={{ zIndex: 9999 }}
           >
             <div className="relative rounded-xl bg-[#050038] p-4 text-white shadow-xl ring-1 ring-white/10">
               <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
@@ -97,7 +119,12 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
               </div>
               
               {/* Arrow */}
-              <div className="absolute left-1/2 top-full -mt-1 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-b border-r border-white/10" />
+              <div className={cn(
+                "absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-white/10",
+                tooltipPosition === 'top' 
+                  ? "top-full -mt-1 border-b border-r" 
+                  : "bottom-full -mb-1 border-t border-l"
+              )} />
             </div>
           </motion.div>
         )}
@@ -105,6 +132,7 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
     </div>
   );
 };
+
 
 export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');

@@ -18,7 +18,7 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen font-sans text-slate-900 antialiased">
+      <div className="min-h-screen font-sans text-[#050038] bg-[#fafafa] antialiased">
         {currentScreen === "dashboard" && (
           <Dashboard 
             onNavigate={(screen) => setCurrentScreen(screen as any)} 
