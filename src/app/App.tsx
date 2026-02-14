@@ -26,11 +26,7 @@ function App() {
   };
 
   return (
-<<<<<<< HEAD
     <TestProvider>
-=======
-    <>
->>>>>>> 3925e69 (upd: liveanalytics + app functionality)
       <div className="min-h-screen font-sans text-[#050038] bg-[#fafafa] antialiased">
         {currentScreen === "boards" && (
           <Boards onNavigate={handleNavigate} />
