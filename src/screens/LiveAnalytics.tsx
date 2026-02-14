@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { cn } from "../lib/utils";
+import { createPortal } from "react-dom";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
@@ -48,6 +49,7 @@ interface HeatmapZoneProps {
 const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
   const zoneRef = useRef<HTMLDivElement>(null);
 
   const colors = {
@@ -58,81 +60,112 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
 
   const style = colors[intensity];
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    
-    if (zoneRef.current) {
-      const rect = zoneRef.current.getBoundingClientRect();
-      const tooltipHeight = 180;
-      const headerHeight = 64; // Approximate Miro header height
+  useEffect(() => {
+    if (isHovered && zoneRef.current) {
+      const updatePosition = () => {
+        if (!zoneRef.current) return;
+        
+        const zoneRect = zoneRef.current.getBoundingClientRect();
+        const tooltipHeight = 180; // Approximate height
+        const tooltipWidth = 256; // w-64 = 16rem = 256px
+        const margin = 16;
+        
+        // Calculate available space
+        const spaceAbove = zoneRect.top;
+        const spaceBelow = window.innerHeight - zoneRect.bottom;
+        
+        // Determine position
+        const showBelow = spaceAbove < (tooltipHeight + margin + 20);
+        setTooltipPosition(showBelow ? 'bottom' : 'top');
+        
+        // Calculate exact coordinates
+        const centerX = zoneRect.left + (zoneRect.width / 2);
+        const tooltipLeft = centerX - (tooltipWidth / 2);
+        
+        const tooltipTop = showBelow 
+          ? zoneRect.bottom + margin
+          : zoneRect.top - tooltipHeight - margin;
+        
+        setTooltipStyle({
+          position: 'fixed',
+          top: `${tooltipTop}px`,
+          left: `${tooltipLeft}px`,
+          width: `${tooltipWidth}px`,
+          zIndex: 9999,
+        });
+      };
       
-      // Check if there's enough space above (considering header)
-      const spaceAbove = rect.top - headerHeight;
-      setTooltipPosition(spaceAbove < tooltipHeight ? 'bottom' : 'top');
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+      
+      return () => {
+        window.removeEventListener('resize', updatePosition);
+        window.removeEventListener('scroll', updatePosition, true);
+      };
     }
-  };
+  }, [isHovered]);
+
+  const tooltipContent = isHovered && (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        style={tooltipStyle}
+      >
+        <div className="relative rounded-xl bg-[#050038] p-4 text-white shadow-xl ring-1 ring-white/10">
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+            <Lightbulb size={16} className={style.text} />
+            <span className="font-bold text-sm">AI Insight</span>
+          </div>
+          <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
+          <div className="space-y-2 text-xs text-white/70">
+            <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Cause:</span> {insight.cause}</p>
+            <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Remedy:</span> {insight.remedy}</p>
+          </div>
+          
+          {/* Arrow */}
+          <div className={cn(
+            "absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-white/10",
+            tooltipPosition === 'top' 
+              ? "top-full -mt-1 border-b border-r" 
+              : "bottom-full -mb-1 border-t border-l"
+          )} />
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
 
   return (
-    <div 
-      ref={zoneRef}
-      className={cn("absolute group cursor-pointer", className, style.z)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Heatmap Blob with Outline */}
-      <div className={cn(
-        "w-full h-full rounded-full opacity-50 blur-xl transition-all duration-300",
-        style.bg,
-        isHovered ? "opacity-80 blur-md" : ""
-      )} />
+    <>
+      <div 
+        ref={zoneRef}
+        className={cn("absolute group cursor-pointer", className, style.z)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Heatmap Blob with Outline */}
+        <div className={cn(
+          "w-full h-full rounded-full opacity-50 blur-xl transition-all duration-300",
+          style.bg,
+          isHovered ? "opacity-80 blur-md" : ""
+        )} />
+        
+        {/* Explicit Outline (Ring) */}
+        <div className={cn(
+          "absolute inset-0 rounded-full border-2 border-dashed opacity-0 transition-opacity duration-300",
+          style.border,
+          isHovered ? "opacity-100" : "opacity-30"
+        )} />
+      </div>
       
-      {/* Explicit Outline (Ring) */}
-      <div className={cn(
-        "absolute inset-0 rounded-full border-2 border-dashed opacity-0 transition-opacity duration-300",
-        style.border,
-        isHovered ? "opacity-100" : "opacity-30"
-      )} />
-
-      {/* AI Insight Popover */}
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div
-            initial={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: tooltipPosition === 'top' ? 10 : -10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className={cn(
-              "absolute left-1/2 w-64 -translate-x-1/2 pointer-events-none",
-              tooltipPosition === 'top' ? "bottom-full mb-4" : "top-full mt-4"
-            )}
-            style={{ zIndex: 9999 }}
-          >
-            <div className="relative rounded-xl bg-[#050038] p-4 text-white shadow-xl ring-1 ring-white/10">
-              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-                <Lightbulb size={16} className={style.text} />
-                <span className="font-bold text-sm">AI Insight</span>
-              </div>
-              <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
-              <div className="space-y-2 text-xs text-white/70">
-                <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Cause:</span> {insight.cause}</p>
-                <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Remedy:</span> {insight.remedy}</p>
-              </div>
-              
-              {/* Arrow */}
-              <div className={cn(
-                "absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-white/10",
-                tooltipPosition === 'top' 
-                  ? "top-full -mt-1 border-b border-r" 
-                  : "bottom-full -mb-1 border-t border-l"
-              )} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Portal tooltip to document.body */}
+      {typeof document !== 'undefined' && tooltipContent && createPortal(tooltipContent, document.body)}
+    </>
   );
 };
-
 
 export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');
