@@ -40,6 +40,7 @@
   - React DnD (Drag and Drop Functionality)
 
   ### Project Structure
+  ```
   beacon/
   ├── src/
   │   ├── app/              # Main application component
@@ -57,3 +58,4 @@
   ├── index.html           # HTML template
   ├── vite.config.ts       # Vite configuration
   └── package.json         # Project dependencies
+  ```
