@@ -15,9 +15,10 @@ import {
   ChevronDown,
   Lock,
   RefreshCw,
-  ArrowRight
+  X
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { cn } from "../lib/utils";
@@ -26,12 +27,84 @@ interface LiveAnalyticsProps {
   onBack: () => void;
 }
 
+// Updated data to match the Blue -> Yellow -> Red intensity scale
 const FIRST_CLICK_DATA = [
-  { name: 'Sign Up', value: 78, color: '#4262ff' },
-  { name: 'Nav', value: 13, color: 'rgba(66, 98, 255, 0.6)' },
-  { name: 'Pricing', value: 6, color: 'rgba(66, 98, 255, 0.4)' },
-  { name: 'Other', value: 3, color: '#fafafa' }, // Very light grey for 'other'
+  { name: 'Sign Up', value: 78, color: '#ef4444' }, // Red (High)
+  { name: 'Hero', value: 13, color: '#ffd02f' },    // Yellow (Medium)
+  { name: 'Pricing', value: 6, color: '#4262ff' },   // Blue (Low)
+  { name: 'Other', value: 3, color: '#fafafa' },
 ];
+
+interface HeatmapZoneProps {
+  intensity: 'low' | 'medium' | 'high';
+  className?: string;
+  insight: {
+    title: string;
+    cause: string;
+    remedy: string;
+  };
+}
+
+const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const colors = {
+    low: { bg: 'bg-[#4262ff]', border: 'border-[#4262ff]', text: 'text-[#4262ff]', z: 'z-10' },
+    medium: { bg: 'bg-[#ffd02f]', border: 'border-[#ffd02f]', text: 'text-[#ffd02f]', z: 'z-20' },
+    high: { bg: 'bg-[#ef4444]', border: 'border-[#ef4444]', text: 'text-[#ef4444]', z: 'z-30' },
+  };
+
+  const style = colors[intensity];
+
+  return (
+    <div 
+      className={cn("absolute group cursor-pointer", className, style.z)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Heatmap Blob with Outline */}
+      <div className={cn(
+        "w-full h-full rounded-full opacity-50 blur-xl transition-all duration-300",
+        style.bg,
+        isHovered ? "opacity-80 blur-md" : ""
+      )} />
+      
+      {/* Explicit Outline (Ring) */}
+      <div className={cn(
+        "absolute inset-0 rounded-full border-2 border-dashed opacity-0 transition-opacity duration-300",
+        style.border,
+        isHovered ? "opacity-100" : "opacity-30"
+      )} />
+
+      {/* AI Insight Popover */}
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="absolute left-1/2 bottom-full mb-4 w-64 -translate-x-1/2 z-50"
+          >
+            <div className="relative rounded-xl bg-[#050038] p-4 text-white shadow-xl ring-1 ring-white/10">
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                <Lightbulb size={16} className={style.text} />
+                <span className="font-bold text-sm">AI Insight</span>
+              </div>
+              <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
+              <div className="space-y-2 text-xs text-white/70">
+                <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Cause:</span> {insight.cause}</p>
+                <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Remedy:</span> {insight.remedy}</p>
+              </div>
+              
+              {/* Arrow */}
+              <div className="absolute left-1/2 top-full -mt-1 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-b border-r border-white/10" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');
@@ -116,18 +189,36 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         </div>
                     </div>
                     {/* Hero */}
-                    <div className="flex-1 bg-white p-16 flex flex-col items-center justify-center border-b border-[#fafafa]">
+                    <div className="flex-1 bg-white p-16 flex flex-col items-center justify-center border-b border-[#fafafa] relative">
                         <h1 className="text-4xl font-bold text-[#050038] mb-4">Transform Your Workflow</h1>
                         <p className="text-[#050038]/60 mb-8 max-w-md text-center">Collaborate, create, and innovate with our all-in-one platform.</p>
                         <div className="relative">
                             <button className="bg-[#ffd02f] text-[#050038] px-8 py-3 rounded-lg font-semibold text-lg shadow-sm">
                                 Sign Up Now
                             </button>
-                             {/* Heatmap Overlay: High concentration on Sign Up */}
-                             <div className="absolute inset-0 -m-8 rounded-full bg-[#4262ff] blur-2xl opacity-40 pointer-events-none mix-blend-multiply"></div>
+                             
+                             {/* ZONE 1: High Intensity (Red) - Sign Up Button */}
+                             <HeatmapZone 
+                                intensity="high" 
+                                className="inset-0 -m-6 z-10"
+                                insight={{
+                                    title: "High Conversion Zone",
+                                    cause: "Primary CTA placement aligns with F-pattern reading and uses high-contrast color.",
+                                    remedy: "Performance is optimal. Consider A/B testing micro-copy to maximize further."
+                                }}
+                             />
                         </div>
-                         {/* Heatmap Overlay: Medium on Hero Text */}
-                         <div className="absolute top-32 left-1/2 -translate-x-1/2 w-64 h-32 bg-[#ffd02f] blur-3xl opacity-30 pointer-events-none mix-blend-multiply"></div>
+
+                         {/* ZONE 2: Medium Intensity (Yellow) - Hero Text */}
+                         <HeatmapZone 
+                            intensity="medium" 
+                            className="top-32 left-1/2 -translate-x-1/2 w-80 h-40 z-10"
+                            insight={{
+                                title: "Moderate Engagement",
+                                cause: "Users are pausing to read the value proposition, but dwell time is lower than expected.",
+                                remedy: "Simplify the headline to reduce cognitive load and speed up time-to-CTA."
+                            }}
+                         />
                     </div>
                     
                     {/* Features */}
@@ -138,7 +229,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     </div>
 
                     {/* Pricing / Bottom */}
-                    <div className={cn("flex-1 bg-white p-12 flex justify-center transition-all duration-500", highlightZone ? "ring-4 ring-[#ffd02f] bg-[#fafafa]" : "")}>
+                    <div className={cn("flex-1 bg-white p-12 flex justify-center transition-all duration-500 relative", highlightZone ? "ring-4 ring-[#ffd02f] bg-[#fafafa]" : "")}>
                          <div className="w-full max-w-4xl flex gap-8">
                             <div className="flex-1 h-48 border border-[#050038]/10 rounded-lg p-6">
                                 <div className="h-6 w-24 bg-[#fafafa] rounded mb-4"></div>
@@ -148,7 +239,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                             <div className="flex-1 h-48 border border-[#050038]/10 rounded-lg p-6 relative">
                                  {/* Dead Zone Overlay */}
                                  {highlightZone && (
-                                    <div className="absolute inset-0 bg-[#ffd02f]/10 flex items-center justify-center border-2 border-dashed border-[#ffd02f] rounded-lg">
+                                    <div className="absolute inset-0 bg-[#ffd02f]/10 flex items-center justify-center border-2 border-dashed border-[#ffd02f] rounded-lg z-20">
                                         <span className="bg-[#ffd02f] text-[#050038] px-2 py-1 rounded text-xs font-bold">0 Interactions</span>
                                     </div>
                                  )}
@@ -159,12 +250,20 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                          </div>
                     </div>
 
-                    {/* Heatmap Overlay: Low on bottom */}
-                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-96 h-32 bg-[#4262ff] blur-3xl opacity-20 pointer-events-none mix-blend-multiply"></div>
+                    {/* ZONE 3: Low Intensity (Blue) - Bottom Area */}
+                    <HeatmapZone 
+                        intensity="low" 
+                        className="bottom-12 left-1/2 -translate-x-1/2 w-96 h-32 z-10"
+                        insight={{
+                            title: "Low Visibility Area",
+                            cause: "Scroll depth drop-off is high (60%). Users aren't reaching this section.",
+                            remedy: "Move critical pricing information higher or add visual cues (arrows) to encourage scrolling."
+                        }}
+                    />
                 </div>
 
                 {/* SVG Arrows Layer */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
                     <defs>
                         <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                             <polygon points="0 0, 10 3.5, 0 7" fill="#4262ff" fillOpacity="0.8" />
@@ -176,7 +275,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         fill="none" 
                         stroke="#4262ff" 
                         strokeWidth="8" 
-                        strokeOpacity="0.8"
+                        strokeOpacity="0.2"
                         markerEnd="url(#arrowhead)"
                     />
                     {/* Landing to Pricing (Thin) */}
@@ -185,7 +284,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         fill="none" 
                         stroke="#4262ff" 
                         strokeWidth="2" 
-                        strokeOpacity="0.8"
+                        strokeOpacity="0.2"
                         markerEnd="url(#arrowhead)"
                     />
                 </svg>
