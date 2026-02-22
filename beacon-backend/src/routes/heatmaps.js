@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Heatmap from '../models/Heatmap.js';
 import Test from '../models/Test.js';
 import auth from '../middleware/auth.js';
+import { authorizeTestOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 import { generateHeatmap } from '../services/heatmapService.js';
 
@@ -14,6 +15,7 @@ router.post(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const test = await Test.findById(req.params.testId);
@@ -47,6 +49,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const filter = { test: req.params.testId };
@@ -71,6 +74,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const { testId, type } = req.params;

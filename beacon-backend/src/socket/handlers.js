@@ -125,9 +125,9 @@ export function initSocketHandlers(io) {
                     metadata: metadata || {},
                 };
 
-                // Append event to the session document
+                // Append event to the session document (capped at 5000 most recent events)
                 await Session.findByIdAndUpdate(targetSessionId, {
-                    $push: { events: event },
+                    $push: { events: { $each: [event], $slice: -5000 } },
                     $inc: { 'metrics.clickCount': type === 'click' ? 1 : 0 },
                 });
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Session from '../models/Session.js';
 import Board from '../models/Board.js';
 import auth from '../middleware/auth.js';
+import { authorizeTestOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 import { detectConfusionZones, getDwellTimeSummary } from '../services/confusionService.js';
 import { computeNavigationPaths, computeScrollDepth } from '../services/flowService.js';
@@ -15,6 +16,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const sessions = await Session.find({ test: req.params.testId })
@@ -80,6 +82,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const zones = await detectConfusionZones(req.params.testId);
@@ -103,6 +106,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const summary = await getDwellTimeSummary(req.params.testId);
@@ -125,6 +129,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const topN = parseInt(req.query.topN) || 10;
@@ -153,6 +158,7 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const bucketSize = parseInt(req.query.bucketSize) || 100;
@@ -177,10 +183,10 @@ router.get(
     auth,
     objectIdParam('testId'),
     validate,
+    authorizeTestOwner('testId'),
     async (req, res) => {
         try {
             const testId = req.params.testId;
-
             const [confusionZones, dwellTimes, flow, scrollDepth, sessions] =
                 await Promise.all([
                     detectConfusionZones(testId),

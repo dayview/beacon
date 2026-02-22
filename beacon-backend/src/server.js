@@ -3,7 +3,9 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
 
 import connectDB from './config/database.js';
 import { initSocketHandlers } from './socket/handlers.js';
@@ -27,6 +29,7 @@ const corsOptions = {
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
     credentials: true,
 };
+app.use(helmet());
 app.use(cors(corsOptions));
 
 // ── Body parsing ─────────────────────────────────────────────
@@ -64,7 +67,17 @@ app.use('/api/heatmaps', heatmapRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    const dbState = mongoose.connection.readyState; // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    const isDbReady = dbState === 1;
+
+    const payload = {
+        status: isDbReady ? 'ok' : 'degraded',
+        timestamp: new Date().toISOString(),
+        db: isDbReady ? 'connected' : 'disconnected',
+        uptime: Math.floor(process.uptime()),
+    };
+
+    res.status(isDbReady ? 200 : 503).json(payload);
 });
 
 // ── Global error handler ─────────────────────────────────────
@@ -84,5 +97,34 @@ connectDB().then(() => {
         console.log(`[${new Date().toISOString()}] Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 });
+
+// ── Graceful shutdown ────────────────────────────────────────
+const shutdown = async (signal) => {
+    console.log(`[${new Date().toISOString()}] ${signal} received. Starting graceful shutdown...`);
+
+    // 1. Stop accepting new connections
+    httpServer.close(() => {
+        console.log(`[${new Date().toISOString()}] HTTP server closed.`);
+    });
+
+    // 2. Close Socket.IO (disconnects all clients)
+    io.close(() => {
+        console.log(`[${new Date().toISOString()}] Socket.IO closed.`);
+    });
+
+    // 3. Close database connection
+    try {
+        await mongoose.connection.close();
+        console.log(`[${new Date().toISOString()}] MongoDB connection closed.`);
+    } catch (err) {
+        console.error(`[${new Date().toISOString()}] Error closing MongoDB:`, err);
+    }
+
+    console.log(`[${new Date().toISOString()}] Graceful shutdown complete.`);
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export { app, httpServer, io };

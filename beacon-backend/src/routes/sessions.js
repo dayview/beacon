@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import Session from '../models/Session.js';
 import auth from '../middleware/auth.js';
+import { authorizeSessionOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 
 const router = Router();
 
 // ── GET /api/sessions/:id ────────────────────────────────────
-router.get('/:id', auth, objectIdParam('id'), validate, async (req, res) => {
+router.get('/:id', auth, objectIdParam('id'), validate, authorizeSessionOwner('id'), async (req, res) => {
     try {
         const session = await Session.findById(req.params.id)
             .populate('test', 'name status tasks')
@@ -24,7 +25,7 @@ router.get('/:id', auth, objectIdParam('id'), validate, async (req, res) => {
 });
 
 // ── GET /api/sessions/:id/events ─────────────────────────────
-router.get('/:id/events', auth, objectIdParam('id'), validate, async (req, res) => {
+router.get('/:id/events', auth, objectIdParam('id'), validate, authorizeSessionOwner('id'), async (req, res) => {
     try {
         const session = await Session.findById(req.params.id).select('events').lean();
 
@@ -40,7 +41,7 @@ router.get('/:id/events', auth, objectIdParam('id'), validate, async (req, res) 
 });
 
 // ── POST /api/sessions/:id/complete ──────────────────────────
-router.post('/:id/complete', auth, objectIdParam('id'), validate, async (req, res) => {
+router.post('/:id/complete', auth, objectIdParam('id'), validate, authorizeSessionOwner('id'), async (req, res) => {
     try {
         const { metrics } = req.body;
 
