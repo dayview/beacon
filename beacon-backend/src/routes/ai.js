@@ -10,9 +10,43 @@ import { analyzeSession } from '../services/aiService.js';
 
 const router = Router();
 
-// ── POST /api/ai/analyze/:sessionId ──────────────────────────
+// ── POST /api/ai/analyze/:testId (test-level) ───────────────
 router.post(
-    '/analyze/:sessionId',
+    '/analyze/:testId',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    checkAIQuota,
+    async (req, res) => {
+        try {
+            const test = await Test.findById(req.params.testId);
+            if (!test) {
+                return res.status(404).json({ error: 'Test not found.' });
+            }
+
+            // Find the latest completed session for this test
+            const session = await Session.findOne({ test: test._id })
+                .sort({ completedAt: -1, startedAt: -1 });
+
+            if (!session) {
+                return res.status(404).json({ error: 'No sessions found for this test. Run a test session first.' });
+            }
+
+            const { provider } = req.body;
+            const insight = await analyzeSession(session, test, req.user, provider);
+
+            res.json({ insight });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] AI analyze-test error:`, error);
+            res.status(500).json({ error: error.message || 'AI analysis failed.' });
+        }
+    }
+);
+
+// ── POST /api/ai/analyze/session/:sessionId ──────────────────
+router.post(
+    '/analyze/session/:sessionId',
     auth,
     objectIdParam('sessionId'),
     validate,

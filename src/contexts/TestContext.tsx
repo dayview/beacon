@@ -1,15 +1,47 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Test, initialTests } from '../data/mockData';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { api, ApiTest, ApiError } from '../lib/api';
 import { toast } from 'sonner';
+import { useAuth } from './AuthContext';
+
+/** Adapter: converts backend ApiTest to a shape the existing UI understands */
+export interface Test {
+  id: string;
+  _id?: string;
+  name: string;
+  description: string;
+  status: 'live' | 'paused' | 'collecting' | 'completed' | 'draft';
+  type: 'solo' | 'live-session' | 'remote';
+  participants: { current: number; target: number };
+  createdAt: string;
+  thumbnail?: string;
+  boardUrl?: string;
+  analytics?: TestAnalytics;
+}
+
+export interface TestAnalytics {
+  totalClicks: number;
+  totalSessions: number;
+  avgDuration: number;
+  completionRate: number;
+  heatmapData: HeatmapPoint[];
+}
+
+export interface HeatmapPoint {
+  x: number;
+  y: number;
+  intensity: number;
+}
 
 interface TestContextType {
   tests: Test[];
   selectedTest: Test | null;
+  isLoading: boolean;
   addTest: (test: Omit<Test, 'id' | 'createdAt'>) => void;
   updateTest: (id: string, updates: Partial<Test>) => void;
   deleteTest: (id: string) => void;
   selectTest: (id: string) => void;
   changeTestStatus: (id: string, status: Test['status']) => void;
+  refreshTests: () => Promise<void>;
 }
 
 const TestContext = createContext<TestContextType | undefined>(undefined);
@@ -22,94 +54,122 @@ export const useTests = () => {
   return context;
 };
 
-interface TestProviderProps {
-  children: ReactNode;
+/** Map backend test model to our frontend Test shape */
+function mapApiTestToTest(t: ApiTest): Test {
+  const statusMap: Record<string, Test['status']> = {
+    draft: 'draft',
+    active: 'live',
+    paused: 'paused',
+    completed: 'completed',
+  };
+
+  return {
+    id: t._id,
+    _id: t._id,
+    name: t.name,
+    description: t.tasks?.[0]?.description || '',
+    status: statusMap[t.status] || 'draft',
+    type: 'solo',
+    participants: {
+      current: 0,
+      target: t.settings?.maxParticipants || 10,
+    },
+    createdAt: t.createdAt,
+    thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
+    boardUrl: typeof t.board === 'object' ? t.board.miroId : undefined,
+  };
 }
 
-export const TestProvider: React.FC<TestProviderProps> = ({ children }) => {
-  // Load tests from localStorage or use initial data
-  const [tests, setTests] = useState<Test[]>(() => {
-    const saved = localStorage.getItem('beacon-tests');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved tests:', e);
-        return initialTests;
+export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const [tests, setTests] = useState<Test[]>([]);
+  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchTests = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setIsLoading(true);
+    try {
+      const data = await api.get<{ tests: ApiTest[] }>('/api/tests');
+      setTests(data.tests.map(mapApiTestToTest));
+    } catch (err) {
+      console.warn('[TestContext] Failed to fetch tests from API, using empty state:', err);
+      // Don't toast on every load failure — user sees empty dashboard
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchTests();
+  }, [fetchTests]);
+
+  const addTest = useCallback(async (test: Omit<Test, 'id' | 'createdAt'>) => {
+    try {
+      const data = await api.post<{ test: ApiTest }>('/api/tests', {
+        name: test.name,
+        tasks: test.description ? [{ description: test.description, order: 0 }] : [],
+        settings: { maxParticipants: test.participants?.target || 10 },
+      });
+      setTests((prev) => [mapApiTestToTest(data.test), ...prev]);
+      toast.success('Test created');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error('Failed to create test');
       }
     }
-    return initialTests;
-  });
+  }, []);
 
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+  const updateTest = useCallback(async (id: string, updates: Partial<Test>) => {
+    try {
+      const patchBody: Record<string, unknown> = {};
+      if (updates.name) patchBody.name = updates.name;
+      if (updates.status) {
+        const reverseMap: Record<string, string> = { live: 'active', paused: 'paused', completed: 'completed', draft: 'draft', collecting: 'active' };
+        patchBody.status = reverseMap[updates.status] || updates.status;
+      }
+      const data = await api.patch<{ test: ApiTest }>(`/api/tests/${id}`, patchBody);
+      setTests((prev) => prev.map((t) => (t.id === id ? mapApiTestToTest(data.test) : t)));
+    } catch (err) {
+      if (err instanceof ApiError) toast.error(err.message);
+      else toast.error('Failed to update test');
+    }
+  }, []);
 
-  // Persist tests to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('beacon-tests', JSON.stringify(tests));
+  const deleteTest = useCallback(async (id: string) => {
+    try {
+      await api.delete<{ success: boolean }>(`/api/tests/${id}`);
+      setTests((prev) => prev.filter((t) => t.id !== id));
+      if (selectedTest?.id === id) setSelectedTest(null);
+      toast.success('Test deleted');
+    } catch (err) {
+      if (err instanceof ApiError) toast.error(err.message);
+      else toast.error('Failed to delete test');
+    }
+  }, [selectedTest]);
+
+  const selectTest = useCallback((id: string) => {
+    setSelectedTest(tests.find((t) => t.id === id) || null);
   }, [tests]);
 
-  const addTest = (testData: Omit<Test, 'id' | 'createdAt'>) => {
-    const newTest: Test = {
-      ...testData,
-      id: `test-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      analytics: {
-        totalClicks: 0,
-        totalSessions: 0,
-        avgDuration: 0,
-        completionRate: 0,
-        heatmapData: [],
-        clickData: [],
-        sessionData: []
-      }
-    };
-    setTests(prev => [newTest, ...prev]);
-    toast.success(`Test "${newTest.name}" created successfully!`);
-  };
-
-  const updateTest = (id: string, updates: Partial<Test>) => {
-    setTests(prev => prev.map(test => 
-      test.id === id ? { ...test, ...updates } : test
-    ));
-    toast.success('Test updated successfully!');
-  };
-
-  const deleteTest = (id: string) => {
-    const test = tests.find(t => t.id === id);
-    setTests(prev => prev.filter(test => test.id !== id));
-    toast.success(`Test "${test?.name}" deleted successfully!`);
-  };
-
-  const selectTest = (id: string) => {
-    const test = tests.find(t => t.id === id);
-    setSelectedTest(test || null);
-  };
-
-  const changeTestStatus = (id: string, status: Test['status']) => {
-    setTests(prev => prev.map(test => 
-      test.id === id ? { ...test, status } : test
-    ));
-    
-    const statusMessages: Record<Test['status'], string> = {
-      live: 'Test is now live!',
-      paused: 'Test paused',
-      collecting: 'Collecting data...',
-      completed: 'Test completed'
-    };
-    
-    toast.success(statusMessages[status]);
-  };
+  const changeTestStatus = useCallback(async (id: string, status: Test['status']) => {
+    await updateTest(id, { status });
+  }, [updateTest]);
 
   return (
     <TestContext.Provider
       value={{
         tests,
         selectedTest,
+        isLoading,
         addTest,
         updateTest,
         deleteTest,
         selectTest,
-        changeTestStatus
+        changeTestStatus,
+        refreshTests: fetchTests,
       }}
     >
       {children}

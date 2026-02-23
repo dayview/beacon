@@ -63,9 +63,6 @@ const userSchema = new mongoose.Schema({
     },
 });
 
-// ── Indexes ──────────────────────────────────────────────────
-userSchema.index({ email: 1 });
-
 // ── Pre-save: hash password ──────────────────────────────────
 userSchema.pre('save', async function (next) {
     // Only hash if passwordHash is being set with a plaintext value
