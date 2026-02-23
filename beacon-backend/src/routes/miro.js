@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import auth from '../middleware/auth.js';
 import {
     exchangeCodeForTokens,
@@ -8,37 +9,64 @@ import {
 
 const router = Router();
 
-// ── GET /api/miro/connect?code=… ─────────────────────────────
-// Miro OAuth callback — exchange code for tokens
-router.get('/connect', auth, async (req, res) => {
+// ── GET /api/miro/authorize ─────────────────────────────
+// Step 1: Initiate OAuth - redirect user to Miro's auth screen
+// The Beacon JWT is passed as 'state' so we can recover the user after redirect
+router.get('/authorize', auth, (req, res) => {
+    const state = req.headers.authorization?.split(' ')[1]; // the Beacon JWT
+    const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: process.env.MIRO_CLIENT_ID,
+        redirect_uri: process.env.MIRO_REDIRECT_URI,
+        state, // carry JWT through the redirect
+    });
+    res.redirect(`https://miro.com/oauth/authorize?${params}`);
+});
+
+// ── GET /api/miro/callback ─────────────────────────────
+// Step 2: Miro redirects here after user approves
+router.get('/callback', async (req, res) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const { code, state } = req.query;
+
+    if (!code || !state) {
+        return res.redirect(`${frontendUrl}?miro_error=true`);
+    }
+
     try {
-        const { code } = req.query;
-        if (!code) {
-            return res.status(400).json({ error: 'Authorization code is required.' });
+        let decoded;
+        try {
+            decoded = jwt.verify(state, process.env.JWT_SECRET);
+        } catch {
+            return res.redirect(`${frontendUrl}?miro_error=true`);
         }
+
+        const User = (await import('../models/User.js')).default;
+        const user = await User.findById(decoded.id);
+        if (!user) return res.redirect(`${frontendUrl}?miro_error=true`);
 
         const tokens = await exchangeCodeForTokens(code);
         const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
 
-        req.user.setMiroTokens({
+        user.setMiroTokens({
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
             expiresAt,
         });
-        await req.user.save();
+        await user.save();
 
-        res.json({ success: true, message: 'Miro account connected successfully.' });
+        res.redirect(`${frontendUrl}?miro_connected=true`);
     } catch (error) {
-        console.error(`[${new Date().toISOString()}] Miro connect error:`, error);
-        res.status(500).json({ error: 'Failed to connect Miro account.' });
+        console.error(`[${new Date().toISOString()}] Miro callback error:`, error);
+        res.redirect(`${frontendUrl}?miro_error=true`);
     }
 });
 
 // ── GET /api/miro/boards ─────────────────────────────────────
+// Step 3: Fetch all boards from Miro
 router.get('/boards', auth, async (req, res) => {
     try {
         const boards = await fetchBoards(req.user);
-
         res.json({
             boards: boards.map((b) => ({
                 id: b.id,
@@ -51,7 +79,7 @@ router.get('/boards', auth, async (req, res) => {
         });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Miro boards error:`, error);
-        res.status(500).json({ error: 'Failed to fetch Miro boards.' });
+        res.status(500).json({ error: 'Failed to fetch boards.' });
     }
 });
 
@@ -59,8 +87,6 @@ router.get('/boards', auth, async (req, res) => {
 router.post('/sync/:boardId', auth, async (req, res) => {
     try {
         const { boardId } = req.params;
-
-        // First fetch the board info from Miro
         const boards = await fetchBoards(req.user);
         const miroBoard = boards.find((b) => b.id === boardId);
         if (!miroBoard) {
@@ -69,7 +95,6 @@ router.post('/sync/:boardId', auth, async (req, res) => {
 
         const board = await syncBoard(req.user, miroBoard);
 
-        // Link to workspace if user has one
         if (req.user.workspace) {
             const Workspace = (await import('../models/Workspace.js')).default;
             await Workspace.findByIdAndUpdate(req.user.workspace, {

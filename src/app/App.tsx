@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster, toast } from "sonner";
 import "../styles/fonts.css";
 import { Login } from "../screens/Login";
@@ -16,10 +16,27 @@ import { AuthProvider, useAuth } from "../contexts/AuthContext";
 type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings";
 
 function AppContent() {
-  const { isAuthenticated, isLoading, logout } = useAuth();
+  const { isAuthenticated, isLoading, logout, refreshUser } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeBoardName, setActiveBoardName] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const miroConnected = params.get('miro_connected');
+    const miroError = params.get('miro_error');
+
+    if (miroConnected) {
+      refreshUser();
+      toast.success('Miro connected successfully!');
+      window.history.replaceState({}, '', '/');
+      setCurrentScreen('settings');
+    } else if (miroError) {
+      toast.error('Failed to connect Miro. Please try again.');
+      window.history.replaceState({}, '', '/');
+      setCurrentScreen('settings');
+    }
+  }, [refreshUser]);
 
   const handleSignOut = () => {
     logout();
