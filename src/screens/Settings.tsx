@@ -3,6 +3,7 @@ import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2 } from 
 import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 
 interface SettingsProps {
   onNavigate: (screen: string) => void;
@@ -10,6 +11,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -117,15 +119,17 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
         <div className="flex items-center gap-8">
           <span className="text-2xl font-bold tracking-tight text-[#050038]">miro</span>
           <nav className="flex gap-8">
-            <button onClick={() => onNavigate('boards')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
-            <button onClick={() => onNavigate('templates')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
-            <button onClick={() => onNavigate('dashboard')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Analytics</button>
-            <button className="text-sm font-semibold text-[#4262ff]">Settings</button>
+            <button onClick={() => onNavigate('boards')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
+            <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
+            <button onClick={() => onNavigate('dashboard')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Analytics</button>
+            <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Settings</button>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#fafafa] overflow-hidden border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
-            <img src={profilePhoto} alt="User" className="h-full w-full object-cover" />
+          <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
+            <span className="text-sm font-bold text-[#4262ff]">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </span>
           </button>
         </div>
       </header>
