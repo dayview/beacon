@@ -159,6 +159,40 @@ export async function syncBoard(user, miroBoard) {
 }
 
 /**
+ * Copy (duplicate) a Miro board into the user's account.
+ * Uses PUT /v2/boards?copy_from={sourceBoardId}
+ * @param {object} user  - Mongoose User document with Miro tokens
+ * @param {string} sourceBoardId - Miro board ID to copy from
+ * @param {string} newName - Name for the duplicated board
+ * @returns {object} The new board object from Miro API
+ */
+export async function copyBoard(user, sourceBoardId, newName) {
+    const token = await getValidToken(user);
+
+    const response = await fetch(
+        `${MIRO_API_BASE}/boards?copy_from=${encodeURIComponent(sourceBoardId)}`,
+        {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: newName,
+                description: `Created from Beacon template: ${newName}`,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Failed to copy Miro board: ${err}`);
+    }
+
+    return response.json();
+}
+
+/**
  * Map Miro item type strings to our schema enum values.
  */
 function mapMiroType(miroType) {

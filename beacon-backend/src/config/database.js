@@ -1,13 +1,23 @@
 import mongoose from 'mongoose';
 
-const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 2000; // 2s, 4s, 8s with exponential backoff
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 2000; // 2s, 4s, 8s, 16s, 32s with exponential backoff
 
 const connectDB = async () => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const conn = await mongoose.connect(process.env.MONGODB_URI, {
-        // Mongoose 8 uses the new URL parser and unified topology by default
+      const uri = process.env.MONGODB_URI;
+      if (!uri) {
+        throw new Error('MONGODB_URI environment variable is not set.');
+      }
+
+      // Log a sanitized version for debugging (hide password)
+      const sanitized = uri.replace(/:([^@]+)@/, ':****@');
+      console.log(`[${new Date().toISOString()}] Connecting to MongoDB: ${sanitized}`);
+
+      const conn = await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 30000,  // 30s to find a server
+        connectTimeoutMS: 30000,          // 30s socket connect timeout
       });
 
       console.log(`[${new Date().toISOString()}] MongoDB connected: ${conn.connection.host}`);

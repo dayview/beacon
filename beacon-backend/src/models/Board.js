@@ -36,7 +36,6 @@ const boardSchema = new mongoose.Schema({
 });
 
 // ── Indexes ──────────────────────────────────────────────────
-boardSchema.index({ miroId: 1 });
 boardSchema.index({ workspace: 1 });
 
 const Board = mongoose.model('Board', boardSchema);

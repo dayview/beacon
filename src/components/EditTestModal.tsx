@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { Test } from '../data/mockData';
+import { Test } from '../contexts/TestContext';
 
 interface EditTestModalProps {
   isOpen: boolean;
