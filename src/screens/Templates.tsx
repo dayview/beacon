@@ -96,15 +96,17 @@ export const Templates: React.FC<TemplatesProps> = ({ onNavigate, onSignOut }) =
         <div className="flex items-center gap-8">
           <span className="text-2xl font-bold tracking-tight text-[#050038]">miro</span>
           <nav className="flex gap-8">
-            <button onClick={() => onNavigate('boards')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
-            <button className="text-sm font-semibold text-[#4262ff]">Templates</button>
-            <button onClick={() => onNavigate('dashboard')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Analytics</button>
-            <button onClick={() => onNavigate('settings')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
+            <button onClick={() => onNavigate('boards')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
+            <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Templates</button>
+            <button onClick={() => onNavigate('dashboard')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Analytics</button>
+            <button onClick={() => onNavigate('settings')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#fafafa] overflow-hidden border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop" alt="User" className="h-full w-full object-cover" />
+          <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
+            <span className="text-sm font-bold text-[#4262ff]">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </span>
           </button>
         </div>
       </header>

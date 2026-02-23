@@ -4,6 +4,7 @@ import { useTests, Test } from "../contexts/TestContext";
 import { EditTestModal } from "../components/EditTestModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { UserProfileModal } from "../components/UserProfileModal";
+import { useAuth } from "../contexts/AuthContext";
 
 interface DashboardProps {
   onNavigate: (screen: string) => void;
@@ -12,6 +13,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest, onSignOut }) => {
+  const { user } = useAuth();
   const { tests, selectTest, updateTest, deleteTest, changeTestStatus } = useTests();
   const [editingTest, setEditingTest] = useState<Test | null>(null);
   const [deletingTest, setDeletingTest] = useState<Test | null>(null);
@@ -92,21 +94,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
             <span className="text-2xl font-bold tracking-tight text-[#050038]">miro</span>
           </div>
           <nav className="flex gap-8">
-            <button onClick={() => onNavigate('boards')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
-            <button onClick={() => onNavigate('templates')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
-            <button className="text-sm font-semibold text-[#4262ff]">Analytics</button>
-            <button onClick={() => onNavigate('settings')} className="text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
+            <button onClick={() => onNavigate('boards')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
+            <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
+            <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Analytics</button>
+            <button onClick={() => onNavigate('settings')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <div
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-2 cursor-pointer"
+          <button
+            onClick={() => setIsProfileOpen(true)}
+            className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors"
           >
-            <div className="h-8 w-8 rounded-full bg-[#fafafa] overflow-hidden border border-[#050038]/10 hover:border-[#4262ff] transition-colors">
-              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=100&auto=format&fit=crop" alt="User" className="h-full w-full object-cover" />
-            </div>
-          </div>
+            <span className="text-sm font-bold text-[#4262ff]">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </span>
+          </button>
         </div>
       </header>
 

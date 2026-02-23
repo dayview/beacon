@@ -7,12 +7,17 @@ import User from '../models/User.js';
  */
 const auth = async (req, res, next) => {
     try {
+        let token;
         const header = req.headers.authorization;
-        if (!header || !header.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'Access denied. No token provided.' });
+        if (header && header.startsWith('Bearer ')) {
+            token = header.split(' ')[1];
+        } else if (req.query && req.query.token) {
+            token = req.query.token;
         }
 
-        const token = header.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'Access denied. No token provided.' });
+        }
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         const user = await User.findById(decoded.id);
