@@ -36,7 +36,7 @@ interface TestContextType {
   tests: Test[];
   selectedTest: Test | null;
   isLoading: boolean;
-  addTest: (test: Omit<Test, 'id' | 'createdAt'>) => void;
+  addTest: (test: Omit<Test, 'id' | 'createdAt'>) => Promise<void>;
   updateTest: (id: string, updates: Partial<Test>) => void;
   deleteTest: (id: string) => void;
   selectTest: (id: string) => void;
@@ -105,21 +105,13 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [fetchTests]);
 
   const addTest = useCallback(async (test: Omit<Test, 'id' | 'createdAt'>) => {
-    try {
-      const data = await api.post<{ test: ApiTest }>('/api/tests', {
-        name: test.name,
-        tasks: test.description ? [{ description: test.description, order: 0 }] : [],
-        settings: { maxParticipants: test.participants?.target || 10 },
-      });
-      setTests((prev) => [mapApiTestToTest(data.test), ...prev]);
-      toast.success('Test created');
-    } catch (err) {
-      if (err instanceof ApiError) {
-        toast.error(err.message);
-      } else {
-        toast.error('Failed to create test');
-      }
-    }
+    const data = await api.post<{ test: ApiTest }>('/api/tests', {
+      name: test.name,
+      tasks: test.description ? [{ description: test.description, order: 0 }] : [],
+      settings: { maxParticipants: test.participants?.target || 10 },
+      board: test.boardUrl,
+    });
+    setTests((prev) => [mapApiTestToTest(data.test), ...prev]);
   }, []);
 
   const updateTest = useCallback(async (id: string, updates: Partial<Test>) => {

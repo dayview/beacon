@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { api, ApiMiroBoard, ApiError } from "../lib/api";
+import { toast } from "sonner";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
@@ -22,30 +24,61 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [description, setDescription] = useState("");
   const [mode, setMode] = useState<"live-session" | "solo">("live-session");
   const [targetParticipants, setTargetParticipants] = useState(20);
+  const [boards, setBoards] = useState<ApiMiroBoard[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState("");
+  const [isLoadingBoards, setIsLoadingBoards] = useState(false);
 
-  const handleStart = () => {
-    // Create the test
-    addTest({
-      name: testName,
-      description: description || `Usability test for ${testName}`,
-      status: 'live',
-      type: mode,
-      participants: {
-        current: 0,
-        target: targetParticipants
+  useEffect(() => {
+    if (isOpen) {
+      const fetchBoards = async () => {
+        setIsLoadingBoards(true);
+        try {
+          const data = await api.get<{ boards: ApiMiroBoard[] }>("/api/miro/boards");
+          setBoards(data.boards);
+          if (data.boards.length > 0) setSelectedBoardId(data.boards[0].id);
+        } catch (err) {
+          console.error("Failed to fetch boards", err);
+        } finally {
+          setIsLoadingBoards(false);
+        }
+      };
+      fetchBoards();
+    }
+  }, [isOpen]);
+
+  const handleStart = async () => {
+    try {
+      await addTest({
+        name: testName,
+        description: description || `Usability test for ${testName}`,
+        status: 'live',
+        type: mode,
+        participants: {
+          current: 0,
+          target: targetParticipants
+        },
+        boardUrl: selectedBoardId
+      });
+
+      toast.success("Test started successfully!");
+      onStart();
+
+      // Reset state after closing
+      setTimeout(() => {
+        setStep(1);
+        setTestName("");
+        setDescription("");
+        setMode("live-session");
+        setTargetParticipants(20);
+        setSelectedBoardId(boards[0]?.id || "");
+      }, 500);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.message);
+      } else {
+        toast.error("Failed to start test");
       }
-    });
-
-    onStart();
-    
-    // Reset state after closing
-    setTimeout(() => {
-      setStep(1);
-      setTestName("");
-      setDescription("");
-      setMode("live-session");
-      setTargetParticipants(20);
-    }, 500);
+    }
   };
 
   return (
@@ -57,11 +90,10 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
             <React.Fragment key={s}>
               <div className="flex flex-col items-center gap-2">
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
-                    step >= s
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors ${step >= s
                       ? "bg-[#4262ff] text-white"
                       : "border border-[#050038]/10 bg-white text-[#050038]/60"
-                  }`}
+                    }`}
                 >
                   {s}
                 </div>
@@ -118,17 +150,42 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                 onChange={(e) => setTargetParticipants(parseInt(e.target.value) || 1)}
               />
             </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                Miro Board <span className="text-[#ffd02f]">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  className="flex h-10 w-full appearance-none rounded-md border border-[#050038]/10 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4262ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={selectedBoardId}
+                  onChange={(e) => setSelectedBoardId(e.target.value)}
+                  disabled={isLoadingBoards}
+                >
+                  <option value="" disabled>
+                    {isLoadingBoards ? "Loading boards..." : "Select a board"}
+                  </option>
+                  {boards.map((board) => (
+                    <option key={board.id} value={board.id}>
+                      {board.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div
-              className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${
-                mode === "live-session"
+              className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${mode === "live-session"
                   ? "border-[#4262ff] bg-[#4262ff]/5"
                   : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
-              }`}
+                }`}
               onClick={() => setMode("live-session")}
             >
               <div className="flex items-start gap-3">
@@ -145,11 +202,10 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
             </div>
 
             <div
-              className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${
-                mode === "solo"
+              className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${mode === "solo"
                   ? "border-[#4262ff] bg-[#4262ff]/5"
                   : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
-              }`}
+                }`}
               onClick={() => setMode("solo")}
             >
               <div className="flex items-start gap-3">
@@ -166,7 +222,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
             </div>
           </div>
         )}
-        
+
         {step === 3 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="rounded-xl border border-[#050038]/10 bg-white p-6">
@@ -200,7 +256,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
           {step > 1 ? "← Back" : "Cancel"}
         </Button>
         <Button
-          disabled={step === 1 && !testName}
+          disabled={step === 1 && (!testName || !selectedBoardId)}
           onClick={() => {
             if (step < 3) {
               setStep(step + 1);

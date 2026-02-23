@@ -189,13 +189,22 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
                 <div className="mt-8 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#050038]/10 bg-white p-12">
                   <Search size={32} className="text-[#050038]/20 mb-4" />
                   <h3 className="text-lg font-semibold text-[#050038]">
-                    {boards.length === 0 ? "No boards yet" : "No boards found"}
+                    {boards.length === 0 ? "No boards found in this Team" : "No boards found"}
                   </h3>
-                  <p className="mt-2 text-sm text-[#050038]/60">
+                  <p className="mt-2 text-sm text-[#050038]/60 text-center max-w-md mb-6">
                     {boards.length === 0
-                      ? "Create a board in Miro, then refresh this page."
-                      : "Try adjusting your search"}
+                      ? "Miro apps are installed per team. If your board isn't showing up, you may need to re-connect and select the specific team where your board is located."
+                      : "Try adjusting your search query."}
                   </p>
+                  {boards.length === 0 && (
+                    <Button variant="secondary" onClick={() => {
+                      const token = getToken();
+                      window.location.href = `/api/miro/authorize?token=${token}`;
+                    }}>
+                      <Link2 size={16} className="mr-2" />
+                      Switch Miro Team
+                    </Button>
+                  )}
                 </div>
               )}
 

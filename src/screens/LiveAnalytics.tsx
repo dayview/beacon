@@ -146,6 +146,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [aiInsights, setAiInsights] = useState<ApiAIInsight[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [analyticsData, setAnalyticsData] = useState<ApiAnalyticsSummary | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [flowData, setFlowData] = useState<{ path: string[]; count: number; percentage: number }[]>([]);
@@ -262,11 +263,15 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const fetchAiInsights = useCallback(async () => {
     if (!selectedTest) return;
     setAiLoading(true);
+    setAiError(null);
     try {
-      const data = await api.get<{ insights: ApiAIInsight[] }>(`/api/ai/insights/${selectedTest.id}`);
+      const data = await api.fetchAiInsights(selectedTest.id);
       setAiInsights(data.insights || []);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[LiveAnalytics] No AI insights available:', err);
+      if (err?.status !== 404) {
+        setAiError(err?.message || 'Failed to load insights.');
+      }
       setAiInsights([]);
     } finally {
       setAiLoading(false);
@@ -277,7 +282,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const handleGenerateInsights = async () => {
     if (!selectedTest) return;
     setAiLoading(true);
+    setAiError(null);
     try {
+      // Clear previous error and invoke LLM wrapper via our backend
       const data = await api.post<{ insight: ApiAIInsight }>(`/api/ai/analyze/${selectedTest.id}`);
       if (data.insight) {
         setAiInsights(prev => [data.insight, ...prev]);
@@ -285,11 +292,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       }
     } catch (err: any) {
       const message = err?.message || 'Failed to generate insights';
-      if (message.includes('API key') || message.includes('not configured')) {
-        toast.error('AI API key not configured. Go to Settings → AI Provider to add your API key.');
-      } else {
-        toast.error(message);
-      }
+      const errorMsg = (message.includes('API key') || message.includes('not configured'))
+        ? 'AI API key not configured. Go to Settings → AI Provider to add your API key.'
+        : message;
+      setAiError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setAiLoading(false);
     }
@@ -702,15 +709,35 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   )}
                 </Button>
 
-                {aiLoading && aiInsights.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <Loader2 size={32} className="animate-spin text-[#4262ff] mb-4" />
-                    <p className="text-sm text-[#050038]/60">Analyzing session data with AI...</p>
-                    <p className="text-xs text-[#050038]/40 mt-1">This may take 10–30 seconds</p>
-                  </div>
-                )}
+                {aiLoading ? (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm animate-pulse">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="h-6 w-6 bg-[#050038]/10 rounded-full"></div>
+                        <div className="h-4 w-16 bg-[#050038]/10 rounded"></div>
+                      </div>
+                      <div className="h-4 w-full bg-[#050038]/10 rounded mb-2"></div>
+                      <div className="h-4 w-3/4 bg-[#050038]/10 rounded mb-6"></div>
 
-                {!aiLoading && aiInsights.length === 0 && (
+                      <div className="h-3 w-32 bg-[#050038]/10 rounded mb-3"></div>
+                      <div className="space-y-2 mb-6">
+                        <div className="h-3 w-5/6 bg-[#050038]/10 rounded"></div>
+                        <div className="h-3 w-4/6 bg-[#050038]/10 rounded"></div>
+                      </div>
+
+                      <div className="h-5 w-20 bg-[#050038]/10 rounded-full"></div>
+                    </div>
+                  </div>
+                ) : aiError ? (
+                  <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-center">
+                    <AlertTriangle size={32} className="mx-auto mb-4 text-red-500" />
+                    <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
+                    <p className="text-sm text-red-600 mb-4">{aiError}</p>
+                    <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                      <RefreshCw size={14} className="mr-2" /> Retry Analysis
+                    </Button>
+                  </div>
+                ) : aiInsights.length === 0 ? (
                   <div className="bg-[#fafafa] p-8 rounded-xl text-center">
                     <Lightbulb size={32} className="mx-auto mb-4 text-[#ffd02f]" />
                     <h3 className="text-base font-semibold text-[#050038] mb-2">No insights yet</h3>
@@ -719,7 +746,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                       The AI will review participant behavior and provide actionable recommendations.
                     </p>
                   </div>
-                )}
+                ) : null}
 
                 {/* Real insight cards */}
                 {aiInsights.map((insight, idx) => (

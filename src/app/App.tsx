@@ -45,7 +45,6 @@ function AppContent() {
 
   const handleStartTest = () => {
     setIsModalOpen(false);
-    toast.success("Test started successfully!");
   };
 
   const handleNavigate = (screen: string) => {

@@ -103,6 +103,7 @@ export async function fetchBoards(user) {
     }
 
     const data = await response.json();
+    console.log(`[miroService] fetchBoards response:`, JSON.stringify(data, null, 2));
     return data.data || [];
 }
 

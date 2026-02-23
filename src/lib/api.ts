@@ -89,6 +89,12 @@ export const api = {
 
     delete: <T>(url: string) =>
         request<T>(url, { method: 'DELETE' }),
+
+    fetchAiInsights: (testId: string) =>
+        request<{ insights: ApiAIInsight[] }>(`/api/ai/insights/${testId}`),
+
+    fetchHeatmapProps: (testId: string) =>
+        request<{ heatmaps: ApiHeatmap[] }>(`/api/heatmaps/${testId}`),
 };
 
 // ── API Type Definitions ────────────────────────────────────
