@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Grid, List, Search, Clock, X, Loader2, Link2, Settings } from "lucide-react";
+import { Plus, Grid, List, Search, Clock, X, Loader2, Link2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
@@ -121,9 +121,11 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
               <p className="text-sm text-[#050038]/60 text-center max-w-md mb-8">
                 Link your Miro account to import boards, run usability tests, and track analytics — all within Beacon.
               </p>
-              <Button variant="primary" onClick={() => onNavigate("settings")}>
-                <Settings size={16} className="mr-2" />
-                Go to Settings
+              <Button variant="primary" onClick={() => {
+                window.location.href = 'https://beacon-4rtv.onrender.com/api/miro/authorize';
+              }}>
+                <Link2 size={16} className="mr-2" />
+                Connect Miro
               </Button>
             </div>
           )}
