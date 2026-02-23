@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -80,6 +82,18 @@ app.get('/health', (_req, res) => {
     };
 
     res.status(isDbReady ? 200 : 503).json(payload);
+});
+
+// ── Serve Frontend (production) ──────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, '../../dist');
+
+app.use(express.static(distPath));
+
+// SPA fallback — any non-API route serves index.html
+app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // ── Global error handler ─────────────────────────────────────
