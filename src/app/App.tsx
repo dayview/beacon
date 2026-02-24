@@ -30,11 +30,11 @@ function AppContent() {
       refreshUser();
       toast.success('Miro connected successfully!');
       window.history.replaceState({}, '', '/');
-      setCurrentScreen('settings');
+      setCurrentScreen('boards');
     } else if (miroError) {
       toast.error('Failed to connect Miro. Please try again.');
       window.history.replaceState({}, '', '/');
-      setCurrentScreen('settings');
+      setCurrentScreen('boards');
     }
   }, [refreshUser]);
 
@@ -94,9 +94,11 @@ function AppContent() {
           />
         )}
 
+        {/* Templates completely disabled for Review
         {currentScreen === "templates" && (
           <Templates onNavigate={handleNavigate} onSignOut={handleSignOut} />
         )}
+        */}
 
         {currentScreen === "dashboard" && (
           <Dashboard

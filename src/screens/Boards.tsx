@@ -80,7 +80,7 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
           <span className="text-2xl font-bold tracking-tight text-[#050038]">miro</span>
           <nav className="flex gap-8">
             <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Boards</button>
-            <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
+            {/* <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button> */}
             <button onClick={() => onNavigate('dashboard')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Analytics</button>
             <button onClick={() => onNavigate('settings')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
           </nav>
