@@ -78,9 +78,11 @@ export function initSocketHandlers(io) {
                 socket.testId = testId;
 
                 // Notify the participant of their session ID
+                const boardId = typeof test.board === 'object' ? test.board.miroId || test.board._id : test.board;
                 socket.emit('session:created', {
                     sessionId: session._id,
                     testId,
+                    boardId,
                 });
 
                 // Broadcast to researchers watching this test

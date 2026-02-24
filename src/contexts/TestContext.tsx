@@ -76,7 +76,7 @@ function mapApiTestToTest(t: ApiTest): Test {
     },
     createdAt: t.createdAt,
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
-    boardUrl: typeof t.board === 'object' ? t.board.miroId : undefined,
+    boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
   };
 }
 
