@@ -1,2 +1,3 @@
-@import 'mirotone/dist/styles.css';
-@import './app.css';
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
