@@ -1,4 +1,12 @@
 import mongoose from 'mongoose';
+import dns from 'dns';
+
+// Force Node.js to use Google/Cloudflare DNS to fix ECONNREFUSED on MongoDB SRV records
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  console.warn('Could not set DNS servers:', e.message);
+}
 
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 2000; // 2s, 4s, 8s, 16s, 32s with exponential backoff
