@@ -1,78 +1,280 @@
 import React, { useState, useRef, useEffect } from "react";
+import { io, Socket } from "socket.io-client";
+import h337 from "heatmap.js";
+import { toast } from "sonner";
 import {
-    MousePointer2,
-    Hand,
-    MessageSquare,
-    Minus,
-    Plus,
-    Square,
-    Circle,
-    Type,
-    Pen,
-    StickyNote,
     ArrowLeft,
-    Download,
-    Share2,
-    MoreHorizontal,
-    Undo2,
-    Redo2,
+    Eye,
+    EyeOff,
+    Loader2,
+    Sparkles,
+    Lightbulb,
+    X
 } from "lucide-react";
 
 interface BoardCanvasProps {
     boardName: string;
     onBack: () => void;
+    boardId: string;       // Miro board ID (e.g. "uXjVI...")
+    testId: string;        // MongoDB test _id
+    thumbnailUrl?: string; // optional fallback image URL from Miro API
 }
 
-type Tool = "pointer" | "hand" | "text" | "shape" | "pen" | "note";
+export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boardId, testId, thumbnailUrl }) => {
+    // Socket & Session State
+    const socketRef = useRef<Socket | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const lastMouseMoveRef = useRef<number>(0);
 
-export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack }) => {
-    const [activeTool, setActiveTool] = useState<Tool>("pointer");
-    const [zoom, setZoom] = useState(100);
-    const [notes, setNotes] = useState<Array<{ id: number; x: number; y: number; text: string; color: string }>>([]);
-    const [editingNote, setEditingNote] = useState<number | null>(null);
-    const canvasRef = useRef<HTMLDivElement>(null);
+    // Heatmap State
+    const [heatmapType, setHeatmapType] = useState<'click' | 'attention' | 'scroll'>('click');
+    const [isGeneratingHeatmap, setIsGeneratingHeatmap] = useState(false);
+    const [showHeatmap, setShowHeatmap] = useState(false);
+    const [heatmapData, setHeatmapData] = useState<any[] | null>(null);
+    const heatmapContainerRef = useRef<HTMLDivElement>(null);
+    const heatmapInstanceRef = useRef<any>(null);
 
-    const handleZoomIn = () => setZoom((prev) => Math.min(prev + 10, 200));
-    const handleZoomOut = () => setZoom((prev) => Math.max(prev - 10, 25));
+    // AI State
+    const [showAIPanel, setShowAIPanel] = useState(false);
+    const [isRunningAI, setIsRunningAI] = useState(false);
+    const [aiInsights, setAiInsights] = useState<any>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
 
-    const colors = ["#ffd02f", "#4262ff", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
+    // Iframe state
+    const [iframeLoaded, setIframeLoaded] = useState(false);
 
-    const handleCanvasClick = (e: React.MouseEvent) => {
-        if (activeTool !== "note") return;
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (!rect) return;
+    // API Initialization
+    const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const getToken = () => localStorage.getItem('beacon_token');
 
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+    // 1. Socket Connection and Cleanup
+    useEffect(() => {
+        const token = getToken();
+        if (!token) {
+            toast.error("No authentication token found.");
+            return;
+        }
 
-        const newNote = {
-            id: Date.now(),
-            x,
-            y,
-            text: "",
-            color: colors[notes.length % colors.length],
+        const socket = io(VITE_API_URL, {
+            auth: { token }
+        });
+
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            setIsConnected(true);
+            socket.emit('session:join', { testId });
+        });
+
+        socket.on('session:created', (data: { sessionId: string, testId: string }) => {
+            sessionIdRef.current = data.sessionId;
+        });
+
+        socket.on('connect_error', () => {
+            setIsConnected(false);
+            toast.error("Tracking unavailable — check connection", { id: 'socket-error' });
+        });
+
+        socket.on('disconnect', () => {
+            setIsConnected(false);
+        });
+
+        return () => {
+            if (sessionIdRef.current) {
+                socketRef.current?.emit('session:complete', { sessionId: sessionIdRef.current });
+            }
+            socket.disconnect();
         };
-        setNotes((prev) => [...prev, newNote]);
-        setEditingNote(newNote.id);
-        setActiveTool("pointer");
+    }, [testId, VITE_API_URL]);
+
+    // 2. Heatmap Initialization and Resize Observer
+    useEffect(() => {
+        if (!heatmapContainerRef.current) return;
+
+        heatmapInstanceRef.current = h337.create({
+            container: heatmapContainerRef.current,
+            radius: 40,
+            maxOpacity: 0.6,
+            minOpacity: 0,
+            blur: 0.8
+        });
+
+        const observer = new ResizeObserver(() => {
+            if (heatmapInstanceRef.current && heatmapContainerRef.current) {
+                // Ensure heatmap resizes correctly
+                heatmapInstanceRef.current._renderer.setDimensions(
+                    heatmapContainerRef.current.offsetWidth,
+                    heatmapContainerRef.current.offsetHeight
+                );
+            }
+        });
+
+        observer.observe(heatmapContainerRef.current);
+
+        return () => {
+            observer.disconnect();
+            heatmapInstanceRef.current = null;
+        };
+    }, []);
+
+    // 3. Tracking Actions
+    const trackEvent = (type: 'click' | 'mousemove' | 'scroll', xPercent: number, yPercent: number) => {
+        if (!sessionIdRef.current || !socketRef.current || !isConnected) return;
+        socketRef.current.emit('session:event', {
+            sessionId: sessionIdRef.current,
+            type,
+            coordinates: { x: xPercent, y: yPercent },
+            timestamp: Date.now(),
+            element: 'iframe_overlay',
+            metadata: {}
+        });
     };
 
-    const tools: { id: Tool; icon: React.ReactNode; label: string }[] = [
-        { id: "pointer", icon: <MousePointer2 size={20} />, label: "Select" },
-        { id: "hand", icon: <Hand size={20} />, label: "Pan" },
-        { id: "text", icon: <Type size={20} />, label: "Text" },
-        { id: "shape", icon: <Square size={20} />, label: "Shape" },
-        { id: "pen", icon: <Pen size={20} />, label: "Draw" },
-        { id: "note", icon: <StickyNote size={20} />, label: "Sticky Note" },
-    ];
+    const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+        const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+        trackEvent('click', xPercent, yPercent);
+    };
+
+    const handleTrackMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        const now = Date.now();
+        if (now - lastMouseMoveRef.current < 100) return;
+        lastMouseMoveRef.current = now;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+        const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+        trackEvent('mousemove', xPercent, yPercent);
+    };
+
+    const handleTrackScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        const xPercent = target.scrollWidth ? (target.scrollLeft / target.scrollWidth) * 100 : 0;
+        const yPercent = target.scrollHeight ? (target.scrollTop / target.scrollHeight) * 100 : 0;
+        trackEvent('scroll', xPercent, yPercent);
+    };
+
+    // 4. Heatmap Generation
+    const handleGenerateHeatmap = async () => {
+        try {
+            setIsGeneratingHeatmap(true);
+            const token = getToken();
+
+            const generateRes = await fetch(`${VITE_API_URL}/api/heatmaps/generate/${testId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ type: heatmapType })
+            });
+
+            if (!generateRes.ok) {
+                const errData = await generateRes.json().catch(() => ({}));
+                throw new Error(errData.message || "Failed to generate heatmap");
+            }
+
+            const getRes = await fetch(`${VITE_API_URL}/api/heatmaps/${testId}/${heatmapType}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!getRes.ok) {
+                const errData = await getRes.json().catch(() => ({}));
+                throw new Error(errData.message || "Failed to fetch heatmap data");
+            }
+
+            const data = await getRes.json();
+
+            if (data?.heatmap?.points) {
+                setHeatmapData(data.heatmap.points);
+                setShowHeatmap(true);
+
+                if (heatmapInstanceRef.current && heatmapContainerRef.current) {
+                    const rect = heatmapContainerRef.current.getBoundingClientRect();
+                    const formattedPoints = data.heatmap.points.map((p: any) => ({
+                        x: Math.round((p.x / 100) * rect.width),
+                        y: Math.round((p.y / 100) * rect.height),
+                        value: p.value || 1
+                    }));
+
+                    const maxVal = formattedPoints.length > 0
+                        ? Math.max(...formattedPoints.map((p: any) => p.value))
+                        : 1;
+
+                    heatmapInstanceRef.current.setData({
+                        max: maxVal,
+                        data: formattedPoints
+                    });
+                }
+            } else {
+                toast("No heatmap data available to display.");
+                setHeatmapData([]);
+                setShowHeatmap(false);
+            }
+        } catch (error: any) {
+            toast.error(`Heatmap generation failed: ${error.message}`);
+        } finally {
+            setIsGeneratingHeatmap(false);
+        }
+    };
+
+    // Toggle visibility logic: sync visual toggle with internal heatmap state
+    useEffect(() => {
+        if (!heatmapContainerRef.current) return;
+        if (showHeatmap) {
+            heatmapContainerRef.current.style.opacity = "1";
+        } else {
+            heatmapContainerRef.current.style.opacity = "0";
+        }
+    }, [showHeatmap]);
+
+    // 5. AI Analysis
+    const handleRunAI = async () => {
+        try {
+            setIsRunningAI(true);
+            setAiError(null);
+            setShowAIPanel(true);
+            const token = getToken();
+
+            const res = await fetch(`${VITE_API_URL}/api/ai/analyze/${testId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || "Failed to analyze data");
+            }
+
+            const data = await res.json();
+            setAiInsights(data.insight?.insights || data.insights);
+        } catch (error: any) {
+            setAiError(`AI analysis failed: ${error.message}`);
+        } finally {
+            setIsRunningAI(false);
+        }
+    };
+
+    const handleBackClick = () => {
+        if (sessionIdRef.current && socketRef.current) {
+            socketRef.current.emit('session:complete', { sessionId: sessionIdRef.current });
+        }
+        onBack();
+    };
 
     return (
-        <div className="flex h-screen w-full flex-col overflow-hidden bg-white">
+        <div className="flex h-screen w-full flex-col overflow-hidden bg-[#fafafa] relative">
             {/* Top Toolbar */}
-            <header className="flex h-14 items-center justify-between border-b border-[#050038]/10 bg-white px-4">
+            <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#050038]/10 bg-white px-4 z-40 relative">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={onBack}
+                        onClick={handleBackClick}
                         className="flex items-center gap-2 text-[#050038]/60 hover:text-[#050038] transition-colors"
                     >
                         <ArrowLeft size={20} />
@@ -82,135 +284,206 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack }) =
                     <span className="text-sm font-medium text-[#050038]">{boardName}</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038] transition-colors">
-                        <Undo2 size={16} />
-                    </button>
-                    <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038] transition-colors">
-                        <Redo2 size={16} />
-                    </button>
-                    <div className="h-6 w-px bg-[#050038]/10 mx-1" />
-                    <div className="flex items-center rounded-md border border-[#050038]/10 bg-white p-1">
-                        <button
-                            onClick={handleZoomOut}
-                            className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"
-                        >
-                            <Minus size={16} />
-                        </button>
-                        <span className="min-w-[48px] text-center text-sm font-medium text-[#050038]">
-                            {zoom}%
+                <div className="flex items-center gap-4">
+                    {/* Session Status indicator */}
+                    <div className="flex items-center gap-1.5 px-2">
+                        <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`} />
+                        <span className="text-sm font-medium text-[#050038]/60">
+                            {isConnected ? "Recording" : "Connecting..."}
                         </span>
-                        <button
-                            onClick={handleZoomIn}
-                            className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"
-                        >
-                            <Plus size={16} />
-                        </button>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 rounded-md border border-[#050038]/10 px-3 py-1.5 text-sm font-medium text-[#050038] hover:bg-[#fafafa] transition-colors">
-                        <Share2 size={16} />
-                        Share
-                    </button>
-                    <button className="flex items-center gap-2 rounded-md border border-[#050038]/10 px-3 py-1.5 text-sm font-medium text-[#050038] hover:bg-[#fafafa] transition-colors">
-                        <Download size={16} />
-                        Export
+                    <div className="h-6 w-px bg-[#050038]/10" />
+
+                    {/* Heatmap Controls */}
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={heatmapType}
+                            onChange={(e) => setHeatmapType(e.target.value as any)}
+                            className="rounded-md border border-[#050038]/10 px-2 py-1.5 text-sm text-[#050038] outline-none bg-white font-medium"
+                        >
+                            <option value="click">Click</option>
+                            <option value="attention">Attention</option>
+                            <option value="scroll">Scroll</option>
+                        </select>
+
+                        <button
+                            onClick={handleGenerateHeatmap}
+                            disabled={isGeneratingHeatmap}
+                            className="flex items-center gap-2 rounded-md border border-[#050038]/10 bg-white px-3 py-1.5 text-sm font-medium text-[#050038] hover:bg-[#fafafa] transition-colors disabled:opacity-50"
+                        >
+                            {isGeneratingHeatmap ? <Loader2 size={16} className="animate-spin text-[#050038]/60" /> : null}
+                            Generate Heatmap
+                        </button>
+
+                        {heatmapData !== null && heatmapData.length > 0 && (
+                            <button
+                                onClick={() => setShowHeatmap(!showHeatmap)}
+                                className="flex items-center justify-center rounded-md border border-[#050038]/10 p-1.5 text-[#050038] hover:bg-[#fafafa] transition-colors"
+                                title="Toggle Heatmap"
+                            >
+                                {showHeatmap ? <Eye size={18} /> : <EyeOff size={18} />}
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="h-6 w-px bg-[#050038]/10" />
+
+                    {/* AI Analysis Control */}
+                    <button
+                        onClick={handleRunAI}
+                        disabled={isRunningAI}
+                        className="flex items-center gap-2 rounded-md bg-[#4262ff] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#344fe6] transition-colors disabled:opacity-50"
+                    >
+                        {isRunningAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        Run AI Analysis
                     </button>
                 </div>
             </header>
 
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left Tool Bar */}
-                <div className="flex w-14 flex-col items-center gap-1 border-r border-[#050038]/10 bg-white py-3">
-                    {tools.map((tool) => (
-                        <button
-                            key={tool.id}
-                            onClick={() => setActiveTool(tool.id)}
-                            title={tool.label}
-                            className={`rounded-lg p-2.5 transition-colors ${activeTool === tool.id
-                                    ? "bg-[#4262ff] text-white"
-                                    : "text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"
-                                }`}
-                        >
-                            {tool.icon}
-                        </button>
-                    ))}
-                </div>
+            {/* Main Canvas Area */}
+            <div className="flex-1 relative overflow-hidden bg-gray-100">
+                {!iframeLoaded && boardId && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-[#fafafa]">
+                        <div className="flex flex-col items-center gap-3">
+                            <Loader2 size={24} className="animate-spin text-[#050038]/60" />
+                            <span className="text-sm font-medium text-[#050038]/60">Loading Miro Board...</span>
+                        </div>
+                    </div>
+                )}
 
-                {/* Canvas */}
+                {/* Miro Embed or Thumbnail */}
+                {boardId ? (
+                    <iframe
+                        src={`https://miro.com/app/live-embed/${boardId}/`}
+                        frameBorder="0"
+                        allowFullScreen
+                        allow="fullscreen"
+                        className="absolute inset-0 w-full h-full"
+                        onLoad={() => setIframeLoaded(true)}
+                    />
+                ) : (
+                    <img
+                        src={thumbnailUrl || `${VITE_API_URL}/api/miro/thumbnails/${boardId}?token=${getToken()}`}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        alt="Board Thumbnail"
+                        onLoad={() => setIframeLoaded(true)}
+                    />
+                )}
+
+                {/* Transparent Event Tracking Overlay */}
                 <div
-                    ref={canvasRef}
-                    onClick={handleCanvasClick}
-                    className="flex-1 relative overflow-hidden bg-[#fafafa]"
-                    style={{
-                        backgroundImage:
-                            "radial-gradient(circle, #050038 0.5px, transparent 0.5px)",
-                        backgroundSize: `${20 * (zoom / 100)}px ${20 * (zoom / 100)}px`,
-                        cursor: activeTool === "hand" ? "grab" : activeTool === "note" ? "crosshair" : "default",
-                    }}
-                >
-                    {/* Center guide text (only when empty) */}
-                    {notes.length === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="text-center">
-                                <div className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-[#050038]/5 flex items-center justify-center">
-                                    <StickyNote size={28} className="text-[#050038]/20" />
-                                </div>
-                                <p className="text-lg font-semibold text-[#050038]/30">
-                                    Start creating on your board
-                                </p>
-                                <p className="mt-1 text-sm text-[#050038]/20">
-                                    Select a tool from the toolbar or click the sticky note icon to add notes
-                                </p>
-                            </div>
-                        </div>
-                    )}
+                    className="absolute inset-0 z-10"
+                    style={{ position: 'absolute', inset: 0, zIndex: 10 }}
+                    onClick={handleTrackClick}
+                    onMouseMove={handleTrackMouseMove}
+                    onScroll={handleTrackScroll}
+                />
 
-                    {/* Sticky Notes */}
-                    {notes.map((note) => (
-                        <div
-                            key={note.id}
-                            className="absolute w-48 rounded-lg shadow-lg transition-shadow hover:shadow-xl cursor-move"
-                            style={{
-                                left: note.x - 96,
-                                top: note.y - 48,
-                                backgroundColor: note.color,
-                                transform: `scale(${zoom / 100})`,
-                            }}
-                        >
-                            <div className="p-4 min-h-[96px]">
-                                {editingNote === note.id ? (
-                                    <textarea
-                                        autoFocus
-                                        className="w-full bg-transparent text-sm text-[#050038] placeholder:text-[#050038]/40 focus:outline-none resize-none"
-                                        placeholder="Type something..."
-                                        value={note.text}
-                                        onChange={(e) =>
-                                            setNotes((prev) =>
-                                                prev.map((n) =>
-                                                    n.id === note.id ? { ...n, text: e.target.value } : n
-                                                )
-                                            )
-                                        }
-                                        onBlur={() => setEditingNote(null)}
-                                        rows={3}
-                                    />
-                                ) : (
-                                    <p
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingNote(note.id);
-                                        }}
-                                        className="text-sm text-[#050038] min-h-[48px]"
-                                    >
-                                        {note.text || "Click to edit..."}
-                                    </p>
-                                )}
-                            </div>
+                {/* Heatmap Canvas Overlay */}
+                <div
+                    ref={heatmapContainerRef}
+                    className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                    style={{ zIndex: 20 }}
+                />
+
+                {/* AI Suggestions Side Panel */}
+                <div
+                    className={`absolute right-0 top-0 bottom-0 z-30 w-80 bg-white border-l border-[#050038]/10 shadow-xl transform transition-transform duration-300 ease-in-out flex flex-col ${showAIPanel ? 'translate-x-0' : 'translate-x-full'
+                        }`}
+                >
+                    <div className="flex items-center justify-between p-4 border-b border-[#050038]/10 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Sparkles size={18} className="text-[#4262ff]" />
+                            <h2 className="text-base font-bold text-[#050038]">AI Insights</h2>
                         </div>
-                    ))}
+                        <button
+                            onClick={() => setShowAIPanel(false)}
+                            className="rounded-md p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038] transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
+                        {isRunningAI && (
+                            <div className="flex flex-col items-center justify-center h-40 gap-3">
+                                <Loader2 size={24} className="animate-spin text-[#4262ff]" />
+                                <span className="text-sm font-medium text-[#050038]/60">Analyzing Interactions...</span>
+                            </div>
+                        )}
+
+                        {aiError && !isRunningAI && (
+                            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md border border-red-100">
+                                {aiError}
+                            </div>
+                        )}
+
+                        {aiInsights && !isRunningAI && (
+                            <>
+                                {/* Summary Section */}
+                                <div className="space-y-2">
+                                    <h3 className="text-sm font-bold text-[#050038] flex items-center gap-1.5 uppercase tracking-wide">
+                                        Summary
+                                    </h3>
+                                    <p className="text-sm leading-relaxed text-[#050038]/80 text-justify">
+                                        {aiInsights.summary}
+                                    </p>
+                                </div>
+
+                                {/* Patterns Section */}
+                                <div className="space-y-2">
+                                    <h3 className="text-sm font-bold text-[#050038] uppercase tracking-wide">
+                                        Patterns
+                                    </h3>
+                                    <ul className="list-disc pl-5 text-sm text-[#050038]/80 space-y-1.5">
+                                        {aiInsights.patterns?.map((pattern: string, i: number) => (
+                                            <li key={i}>{pattern}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                {/* Recommendations Section */}
+                                <div className="space-y-2">
+                                    <h3 className="text-sm font-bold text-[#050038] uppercase tracking-wide">
+                                        Recommendations
+                                    </h3>
+                                    <ul className="space-y-2.5">
+                                        {aiInsights.recommendations?.map((rec: string, i: number) => (
+                                            <li key={i} className="flex gap-2.5 text-sm text-[#050038]/80 items-start bg-[#fafafa] p-2.5 rounded-lg border border-[#050038]/5">
+                                                <Lightbulb size={16} className="text-[#f59e0b] shrink-0 mt-0.5" />
+                                                <span className="leading-tight">{rec}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                {/* Sentiment Section */}
+                                <div className="space-y-2">
+                                    <h3 className="text-sm font-bold text-[#050038] uppercase tracking-wide">
+                                        Sentiment
+                                    </h3>
+                                    <div className="flex">
+                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${aiInsights.sentiment === 'positive' ? 'bg-green-50 text-green-700 border-green-200' :
+                                            aiInsights.sentiment === 'negative' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                'bg-gray-50 text-gray-700 border-gray-200'
+                                            }`}>
+                                            {aiInsights.sentiment}
+                                        </span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {!isRunningAI && !aiError && !aiInsights && (
+                            <div className="flex flex-col items-center justify-center h-40 text-center gap-2">
+                                <Sparkles size={24} className="text-[#050038]/20" />
+                                <p className="text-sm text-[#050038]/40 px-4">
+                                    Run the analysis to see insights, patterns, and recommendations.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
