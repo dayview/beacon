@@ -25,8 +25,8 @@ export const registerValidation = [
         .withMessage('Valid email is required')
         .normalizeEmail(),
     body('password')
-        .isLength({ min: 8 })
-        .withMessage('Password must be at least 8 characters'),
+        .isLength({ min: 6 })
+        .withMessage('Password must be at least 6 characters'),
     body('name')
         .trim()
         .notEmpty()
