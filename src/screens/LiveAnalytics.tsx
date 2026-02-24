@@ -140,7 +140,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');
   const [highlightZone, setHighlightZone] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [activeTool, setActiveTool] = useState<'pointer' | 'hand' | 'comment'>('pointer');
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
 
   // ── Real API state ──────────────────────────────────────
@@ -159,6 +158,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [clickDistribution, setClickDistribution] = useState<{ element: string; clicks: number; pct: number; color: string }[]>([]);
 
   const boardRef = useRef<HTMLDivElement>(null);
+  const hasFetchedHeatmap = useRef(false);
+  const hasFetchedAi = useRef(false);
+  const hasFetchedFlow = useRef(false);
   const boardWidth = 1200;
   const boardHeight = 800;
 
@@ -323,16 +325,19 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
   // ── Lazy-load tab data ────────────────────────────────
   useEffect(() => {
-    if (activeTab === 'ai' && aiInsights.length === 0 && !aiLoading) {
+    if (activeTab === 'ai' && !hasFetchedAi.current && !aiLoading) {
+      hasFetchedAi.current = true;
       fetchAiInsights();
     }
-    if (activeTab === 'flow' && flowData.length === 0 && !flowLoading) {
+    if (activeTab === 'flow' && !hasFetchedFlow.current && !flowLoading) {
+      hasFetchedFlow.current = true;
       fetchFlow();
     }
-    if (activeTab === 'heatmap' && heatmapData.length === 0 && !heatmapLoading) {
+    if (activeTab === 'heatmap' && !hasFetchedHeatmap.current && !heatmapLoading) {
+      hasFetchedHeatmap.current = true;
       fetchHeatmap();
     }
-  }, [activeTab, aiInsights.length, aiLoading, fetchAiInsights, flowData.length, flowLoading, fetchFlow, heatmapData.length, heatmapLoading, fetchHeatmap]);
+  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap]);
 
   // ── Socket.IO real-time updates ───────────────────────
   useEffect(() => {
@@ -407,12 +412,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
             <ArrowLeft size={20} />
             <span className="font-bold text-[#050038] text-xl">miro</span>
           </button>
-          <div className="h-6 w-px bg-[#050038]/10"></div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setActiveTool('pointer')} className={cn("rounded p-1.5 transition-colors", activeTool === 'pointer' ? 'bg-[#4262ff] text-white' : 'text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]')} title="Select"><MousePointer2 size={20} /></button>
-            <button onClick={() => setActiveTool('hand')} className={cn("rounded p-1.5 transition-colors", activeTool === 'hand' ? 'bg-[#4262ff] text-white' : 'text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]')} title="Pan"><Hand size={20} /></button>
-            <button onClick={() => setActiveTool('comment')} className={cn("rounded p-1.5 transition-colors", activeTool === 'comment' ? 'bg-[#4262ff] text-white' : 'text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]')} title="Comment"><MessageSquare size={20} /></button>
-          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -500,7 +499,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting') && (
                   <button onClick={handlePauseTest} className="hover:text-[#050038]"><Pause size={20} /></button>
                 )}
-                <button onClick={handleStopTest} className="hover:text-[#050038] text-[#050038]"><Square size={20} fill="currentColor" /></button>
+                {(selectedTest.status === 'live' || selectedTest.status === 'collecting' || selectedTest.status === 'paused') && (
+                  <button onClick={handleStopTest} className="hover:text-[#050038] text-[#050038]"><Square size={20} fill="currentColor" /></button>
+                )}
               </div>
             </div>
           </div>
