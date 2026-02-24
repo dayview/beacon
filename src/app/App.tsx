@@ -9,16 +9,17 @@ import { Boards } from "../screens/Boards";
 import { BoardCanvas } from "../screens/BoardCanvas";
 import { Templates } from "../screens/Templates";
 import { Settings } from "../screens/Settings";
+import { Participate } from "../screens/Participate";
 import { TestSetupModal } from "../components/TestSetupModal";
 import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { api, ApiTest } from "../lib/api";
 
-type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings";
+type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate";
 
 function AppContent() {
   const { isAuthenticated, isLoading, logout, refreshUser } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
+  const [currentScreen, setCurrentScreen] = useState<Screen>(window.location.pathname === '/participate' ? "participate" : "dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeBoardName, setActiveBoardName] = useState("");
 
@@ -95,6 +96,10 @@ function AppContent() {
     setCurrentScreen(screen as Screen);
   };
 
+  if (currentScreen === 'participate') {
+    return <Participate />;
+  }
+
   // Show loading spinner while checking auth
   if (isLoading) {
     return (
@@ -129,6 +134,8 @@ function AppContent() {
         {currentScreen === "board-canvas" && (
           <BoardCanvas
             boardName={activeBoardName}
+            boardId=""
+            testId=""
             onBack={() => setCurrentScreen("boards")}
           />
         )}

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api, ApiUser, setToken, getToken, clearToken, ApiError } from '../lib/api';
-import { connectSocket, disconnectSocket } from '../lib/socket';
+import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
 
 interface AuthContextType {
     user: ApiUser | null;
@@ -46,7 +46,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const data = await api.get<{ user: ApiUser }>('/api/auth/me');
                 setUser(data.user);
                 setTokenState(savedToken);
-                connectSocket();
+                if (!getSocket().connected) {
+                    connectSocket();
+                }
             } catch {
                 // Token invalid or backend unreachable
                 clearToken();
@@ -78,7 +80,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(data.token);
         setTokenState(data.token);
         setUser(data.user);
-        connectSocket();
+        if (!getSocket().connected) {
+            connectSocket();
+        }
     }, []);
 
     const register = useCallback(async (email: string, password: string, name: string) => {
@@ -90,7 +94,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(data.token);
         setTokenState(data.token);
         setUser(data.user);
-        connectSocket();
+        if (!getSocket().connected) {
+            connectSocket();
+        }
     }, []);
 
     const logout = useCallback(() => {
