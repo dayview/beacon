@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from"react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   MousePointer2,
   Hand,
@@ -21,18 +21,18 @@ import {
   Target,
   Layers,
   Loader2
-} from"lucide-react";
+} from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { motion, AnimatePresence } from"motion/react";
-import { Button } from"../components/ui/Button";
-import { Badge } from"../components/ui/Badge";
-import { cn } from"../lib/utils";
-import { createPortal } from"react-dom";
-import { useTests } from"../contexts/TestContext";
-import { toast } from"sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from"../lib/api";
-import { HeatmapCanvas } from"../components/HeatmapCanvas";
-import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from"../lib/socket";
+import { motion, AnimatePresence } from "motion/react";
+import { Button } from "../components/ui/Button";
+import { Badge } from "../components/ui/Badge";
+import { cn } from "../lib/utils";
+import { createPortal } from "react-dom";
+import { useTests } from "../contexts/TestContext";
+import { toast } from "sonner";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from "../lib/api";
+import { HeatmapCanvas } from "../components/HeatmapCanvas";
+import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
@@ -109,7 +109,7 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
             <p><span className="tooltip-label">Remedy:</span> {insight.remedy}</p>
           </div>
           <div className={cn("absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[var(--neutral900)] border-white/10",
-            tooltipPosition === 'top' ?"tooltip-arrow-top" :"tooltip-arrow-bottom"
+            tooltipPosition === 'top' ? "tooltip-arrow-top" : "tooltip-arrow-bottom"
           )} />
         </div>
       </motion.div>
@@ -125,8 +125,8 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className={cn("heatmap-zone-bg", style.bg, isHovered ?"hovered" :"")} />
-        <div className={cn("heatmap-zone-border", style.border, isHovered ?"hovered" :"")} />
+        <div className={cn("heatmap-zone-bg", style.bg, isHovered ? "hovered" : "")} />
+        <div className={cn("heatmap-zone-border", style.border, isHovered ? "hovered" : "")} />
       </div>
       {typeof document !== 'undefined' && tooltipContent && createPortal(tooltipContent, document.body)}
     </>
@@ -424,7 +424,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       draft: { label: 'Draft', variant: 'default' },
     };
     const config = statusConfig[selectedTest.status] || statusConfig.draft;
-    return <span className={`tag ${config.variant ==="live" ?"tag--blue" :"tag--neutral"}`}>{config.label}</span>;
+    return <span className={`tag ${config.variant === "live" ? "tag--blue" : "tag--neutral"}`}>{config.label}</span>;
   };
 
   return (
@@ -540,7 +540,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     key={tab}
                     onClick={() => setActiveTab(id)}
                     className={cn("py-3 p-small  transition-colors border-b-2",
-                      activeTab === id ?"border-[var(--blue500)] textColorBlue500" :"border-transparent textColorNeutral600 hover:textColorBlack"
+                      activeTab === id ? "border-[var(--blue500)] textColorBlue500" : "border-transparent textColorNeutral600 hover:textColorBlack"
                     )}
                   >
                     {tab === 'AI Insights' && <span className="icon"><span className="icon"><Lightbulb size={14} className="inline mr-1 mb-0.5" /></span></span>}
@@ -636,7 +636,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         <span className="icon"><span className="icon"><Info size={14} className="textColorNeutral600" /></span></span>
                       </div>
                       {firstClickData.length > 0 ? (
-                        <div style={{ height:"192px", width:"100%" }}>
+                        <div style={{ height: "192px", width: "100%" }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart layout="vertical" data={firstClickData} margin={{ left: 0, right: 30 }}>
                               <XAxis type="number" hide />
@@ -672,7 +672,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                               onClick={() => setHighlightZone(!highlightZone)}
                               className="mt-3 p-small  textColorBlack underline decoration-[#ffd02f] hover:textColorNeutral800"
                             >
-                              {highlightZone ?"Hide on board" :"Highlight on board"}
+                              {highlightZone ? "Hide on board" : "Highlight on board"}
                             </button>
                           </div>
                         ))}
@@ -700,7 +700,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                           }}
                         >
                           Simulate 5 Playthroughs
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </>
@@ -805,7 +805,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         onClick={() => { setShowAiOnBoard(!showAiOnBoard); toast.info(showAiOnBoard ? 'Insight hidden from board' : 'Insight shown on board'); }}
                       >
                         {showAiOnBoard ? 'Hide from board' : 'Show on board'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -826,7 +826,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   ) : (
                     <><span className="icon"><span className="icon"><RefreshCw size={14} className="mr-2" /></span></span> Generate Heatmap from Sessions</>
                   )}
-                </button>
+                </Button>
 
                 <div>
                   <h3 className="p-medium  textColorBlack mb-3">Heatmap Legend</h3>
