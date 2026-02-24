@@ -111,6 +111,8 @@ export async function detectConfusionZones(testId) {
     const rageClickElements = new Map(); // element → count of sessions with rage clicks
 
     for (const [sessionId, clicks] of clickSequences) {
+        if (!clicks || clicks.length === 0) continue;
+
         // Sort clicks by timestamp
         clicks.sort((a, b) => a.timestamp - b.timestamp);
 
