@@ -194,12 +194,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     }
   }, [selectedTest]);
 
-  // ── Fetch heatmap data ────────────────────────────────
+  // ── Fetch heatmap data (only called explicitly, not on mount) ─
   const fetchHeatmap = useCallback(async () => {
     if (!selectedTest) return;
     setHeatmapLoading(true);
     try {
-      // The /:testId/:type endpoint returns { heatmap } (singular), fallback to /:testId for all
       const data = await api.get<{ heatmap?: ApiHeatmap; heatmaps?: ApiHeatmap[] }>(`/api/heatmaps/${selectedTest.id}/click`);
       const allHeatmaps = data.heatmaps || (data.heatmap ? [data.heatmap] : []);
       if (allHeatmaps.length > 0) {
@@ -209,7 +208,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
         // Derive click distribution from heatmap data
         const total = allPoints.length;
         if (total > 0) {
-          // Group by quadrant
           const zones = [
             { element: 'Top-Left (CTA area)', color: '#ef4444', count: 0 },
             { element: 'Top-Right (Nav)', color: '#ffd02f', count: 0 },
@@ -286,7 +284,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     setAiLoading(true);
     setAiError(null);
     try {
-      // Clear previous error and invoke LLM wrapper via our backend
       const data = await api.post<{ insight: ApiAIInsight }>(`/api/ai/analyze/${selectedTest.id}`);
       if (data.insight) {
         setAiInsights(prev => [data.insight, ...prev]);
@@ -319,11 +316,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     }
   }, [selectedTest]);
 
-  // ── Initial data loads ────────────────────────────────
+  // ── Initial data loads (analytics only — heatmap is on-demand) ──
   useEffect(() => {
     fetchAnalytics();
-    fetchHeatmap();
-  }, [fetchAnalytics, fetchHeatmap]);
+  }, [fetchAnalytics]);
 
   // ── Lazy-load tab data ────────────────────────────────
   useEffect(() => {
@@ -333,7 +329,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     if (activeTab === 'flow' && flowData.length === 0 && !flowLoading) {
       fetchFlow();
     }
-  }, [activeTab, aiInsights.length, aiLoading, fetchAiInsights, flowData.length, flowLoading, fetchFlow]);
+    if (activeTab === 'heatmap' && heatmapData.length === 0 && !heatmapLoading) {
+      fetchHeatmap();
+    }
+  }, [activeTab, aiInsights.length, aiLoading, fetchAiInsights, flowData.length, flowLoading, fetchFlow, heatmapData.length, heatmapLoading, fetchHeatmap]);
 
   // ── Socket.IO real-time updates ───────────────────────
   useEffect(() => {
@@ -671,13 +670,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                       </div>
                       <div className="h-4 w-full bg-[#050038]/10 rounded mb-2"></div>
                       <div className="h-4 w-3/4 bg-[#050038]/10 rounded mb-6"></div>
-
                       <div className="h-3 w-32 bg-[#050038]/10 rounded mb-3"></div>
                       <div className="space-y-2 mb-6">
                         <div className="h-3 w-5/6 bg-[#050038]/10 rounded"></div>
                         <div className="h-3 w-4/6 bg-[#050038]/10 rounded"></div>
                       </div>
-
                       <div className="h-5 w-20 bg-[#050038]/10 rounded-full"></div>
                     </div>
                   </div>
@@ -713,11 +710,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         )}
                       </div>
                     </div>
-
-                    {/* Summary */}
                     <p className="text-sm text-[#050038]/70 leading-relaxed mb-4">{insight.insights.summary}</p>
-
-                    {/* Patterns */}
                     {insight.insights.patterns.length > 0 && (
                       <div className="mb-4">
                         <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Patterns detected:</span>
@@ -726,8 +719,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Recommendations */}
                     {insight.insights.recommendations.length > 0 && (
                       <div className="mb-4">
                         <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Recommendations:</span>
@@ -736,8 +727,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         </ul>
                       </div>
                     )}
-
-                    {/* Sentiment */}
                     <div className="flex items-center gap-2 mt-3">
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-xs font-semibold",
@@ -751,7 +740,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         {new Date(insight.generatedAt).toLocaleString()}
                       </span>
                     </div>
-
                     <div className="flex items-center gap-3 mt-4">
                       <Button
                         variant="secondary"
