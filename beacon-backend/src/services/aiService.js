@@ -29,8 +29,7 @@ async function callOpenAI(apiKey, prompt) {
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
-    const cost = estimateOpenAICost(data.usage);
-    return { content, cost };
+    return { content, cost: 0 };
 }
 
 async function callAnthropic(apiKey, prompt) {
@@ -55,8 +54,7 @@ async function callAnthropic(apiKey, prompt) {
 
     const data = await response.json();
     const content = data.content?.[0]?.text || '';
-    const cost = estimateAnthropicCost(data.usage);
-    return { content, cost };
+    return { content, cost: 0 };
 }
 
 async function callCustom(endpoint, headers, prompt) {
@@ -84,24 +82,6 @@ async function callCustom(endpoint, headers, prompt) {
         data.response ||
         JSON.stringify(data);
     return { content, cost: 0 };
-}
-
-// ── Cost estimation helpers ──────────────────────────────────
-
-function estimateOpenAICost(usage) {
-    if (!usage) return 0;
-    // Approximate GPT-4 pricing: $0.03/1K input, $0.06/1K output
-    const inputCost = (usage.prompt_tokens / 1000) * 0.03;
-    const outputCost = (usage.completion_tokens / 1000) * 0.06;
-    return Math.round((inputCost + outputCost) * 10000) / 10000;
-}
-
-function estimateAnthropicCost(usage) {
-    if (!usage) return 0;
-    // Approximate Claude 3.5 Sonnet pricing: $3/M input, $15/M output
-    const inputCost = (usage.input_tokens / 1_000_000) * 3;
-    const outputCost = (usage.output_tokens / 1_000_000) * 15;
-    return Math.round((inputCost + outputCost) * 10000) / 10000;
 }
 
 // ── Prompt builder ───────────────────────────────────────────
