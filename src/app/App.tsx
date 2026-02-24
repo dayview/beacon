@@ -94,9 +94,11 @@ function AppContent() {
           />
         )}
 
+        {/* Templates completely disabled for Review
         {currentScreen === "templates" && (
           <Templates onNavigate={handleNavigate} onSignOut={handleSignOut} />
         )}
+        */}
 
         {currentScreen === "dashboard" && (
           <Dashboard

@@ -95,7 +95,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
           </div>
           <nav className="flex gap-8">
             <button onClick={() => onNavigate('boards')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Boards</button>
-            <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button>
+            {/* <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button> */}
             <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Analytics</button>
             <button onClick={() => onNavigate('settings')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Settings</button>
           </nav>

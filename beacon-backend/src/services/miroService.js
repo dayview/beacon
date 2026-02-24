@@ -93,7 +93,7 @@ async function getValidToken(user) {
 export async function fetchBoards(user) {
     const token = await getValidToken(user);
 
-    const response = await fetch(`${MIRO_API_BASE}/boards`, {
+    const response = await fetch(`${MIRO_API_BASE}/boards?limit=50&sort=last_modified`, {
         headers: { Authorization: `Bearer ${token}` },
     });
 
