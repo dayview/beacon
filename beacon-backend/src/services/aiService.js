@@ -7,14 +7,16 @@ import AIInsight from '../models/AIInsight.js';
 // ── Provider API calls ───────────────────────────────────────
 
 async function callOpenAI(apiKey, prompt) {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://beacon-4rtv.onrender.com/',
+            'X-Title': 'Beacon',
         },
         body: JSON.stringify({
-            model: 'gpt-4',
+            model: 'meta-llama/llama-3.3-70b-instruct:free',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
