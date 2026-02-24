@@ -3,3 +3,5 @@ dist
 .env
 .env.local
 .env.production
+e2e_output.txt
+e2e_test.js
