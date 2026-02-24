@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from"react";
 import {
   MousePointer2,
   Hand,
@@ -21,18 +21,18 @@ import {
   Target,
   Layers,
   Loader2
-} from "lucide-react";
+} from"lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { motion, AnimatePresence } from "motion/react";
-import { Button } from "../components/ui/Button";
-import { Badge } from "../components/ui/Badge";
-import { cn } from "../lib/utils";
-import { createPortal } from "react-dom";
-import { useTests } from "../contexts/TestContext";
-import { toast } from "sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from "../lib/api";
-import { HeatmapCanvas } from "../components/HeatmapCanvas";
-import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
+import { motion, AnimatePresence } from"motion/react";
+import { Button } from"../components/ui/Button";
+import { Badge } from"../components/ui/Badge";
+import { cn } from"../lib/utils";
+import { createPortal } from"react-dom";
+import { useTests } from"../contexts/TestContext";
+import { toast } from"sonner";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from"../lib/api";
+import { HeatmapCanvas } from"../components/HeatmapCanvas";
+import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from"../lib/socket";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
@@ -57,9 +57,9 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
   const zoneRef = useRef<HTMLDivElement>(null);
 
   const colors = {
-    low: { bg: 'bg-[#4262ff]', border: 'border-[#4262ff]', text: 'text-[#4262ff]', z: 'z-10' },
-    medium: { bg: 'bg-[#ffd02f]', border: 'border-[#ffd02f]', text: 'text-[#ffd02f]', z: 'z-20' },
-    high: { bg: 'bg-[#ef4444]', border: 'border-[#ef4444]', text: 'text-[#ef4444]', z: 'z-30' },
+    low: { bg: 'bg-[var(--blue500)]', border: 'border-[var(--blue500)]', text: 'textColorBlue500', z: 'z-10' },
+    medium: { bg: 'bg-[var(--yellow500)]', border: 'border-[var(--yellow500)]', text: 'textColorYellow500', z: 'z-20' },
+    high: { bg: 'bg-[var(--red500)]', border: 'border-[#ef4444]', text: 'textColorRed500', z: 'z-30' },
   };
 
   const style = colors[intensity];
@@ -98,19 +98,18 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
         transition={{ duration: 0.2 }}
         style={tooltipStyle}
       >
-        <div className="relative rounded-xl bg-[#050038] p-4 text-white shadow-xl ring-1 ring-white/10">
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-            <Lightbulb size={16} className={style.text} />
-            <span className="font-bold text-sm">AI Insight</span>
+        <div className="heatmap-zone-tooltip">
+          <div className="tooltip-header">
+            <span className="icon"><span className="icon"><Lightbulb size={16} className={style.text} /></span></span>
+            <span className="p-small">AI Insight</span>
           </div>
-          <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
-          <div className="space-y-2 text-xs text-white/70">
-            <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Cause:</span> {insight.cause}</p>
-            <p><span className="text-white/40 font-semibold uppercase tracking-wider text-[10px]">Remedy:</span> {insight.remedy}</p>
+          <h4 className="p-small mb-1">{insight.title}</h4>
+          <div className="tooltip-content-box">
+            <p><span className="tooltip-label">Cause:</span> {insight.cause}</p>
+            <p><span className="tooltip-label">Remedy:</span> {insight.remedy}</p>
           </div>
-          <div className={cn(
-            "absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[#050038] border-white/10",
-            tooltipPosition === 'top' ? "top-full -mt-1 border-b border-r" : "bottom-full -mb-1 border-t border-l"
+          <div className={cn("absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-[var(--neutral900)] border-white/10",
+            tooltipPosition === 'top' ?"tooltip-arrow-top" :"tooltip-arrow-bottom"
           )} />
         </div>
       </motion.div>
@@ -121,13 +120,13 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
     <>
       <div
         ref={zoneRef}
-        className={cn("absolute group cursor-pointer", className, style.z)}
+        className={cn("heatmap-zone-container", className, style.z)}
         style={customStyle}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className={cn("w-full h-full rounded-full opacity-50 blur-xl transition-all duration-300", style.bg, isHovered ? "opacity-80 blur-md" : "")} />
-        <div className={cn("absolute inset-0 rounded-full border-2 border-dashed opacity-0 transition-opacity duration-300", style.border, isHovered ? "opacity-100" : "opacity-30")} />
+        <div className={cn("heatmap-zone-bg", style.bg, isHovered ?"hovered" :"")} />
+        <div className={cn("heatmap-zone-border", style.border, isHovered ?"hovered" :"")} />
       </div>
       {typeof document !== 'undefined' && tooltipContent && createPortal(tooltipContent, document.body)}
     </>
@@ -395,13 +394,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   // If no test is selected, show error state
   if (!selectedTest) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#fafafa]">
-        <div className="text-center">
-          <AlertTriangle size={48} className="mx-auto mb-4 text-[#ffd02f]" />
-          <h2 className="text-2xl font-bold text-[#050038] mb-2">No Test Selected</h2>
-          <p className="text-[#050038]/60 mb-6">Please select a test from the dashboard to view analytics.</p>
-          <button onClick={onBack} className="inline-flex items-center gap-2 rounded-md bg-[#ffd02f] px-6 py-3 text-sm font-semibold text-[#050038] hover:bg-[#ffd02f]/90">
-            <ArrowLeft size={16} /> Back to Dashboard
+      <div className="empty-state-container">
+        <div className="empty-state-content">
+          <span className="icon"><span className="icon"><AlertTriangle size={48} className="mx-auto mb-4 textColorYellow500" /></span></span>
+          <h2 className="h2  textColorBlack mb-2">No Test Selected</h2>
+          <p className="textColorNeutral600 mb-6">Please select a test from the dashboard to view analytics.</p>
+          <button onClick={onBack} className="inline-flex items-center gap-2 rounded-md bg-[var(--yellow500)] px-6 py-3 p-small  textColorBlack hover:bg-[var(--yellow500)]/90">
+            <span className="icon"><span className="icon"><ArrowLeft size={16} /></span></span> Back to Dashboard
           </button>
         </div>
       </div>
@@ -425,50 +424,50 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       draft: { label: 'Draft', variant: 'default' },
     };
     const config = statusConfig[selectedTest.status] || statusConfig.draft;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <span className={`tag ${config.variant ==="live" ?"tag--blue" :"tag--neutral"}`}>{config.label}</span>;
   };
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-white">
+    <div className="live-analytics-container">
       {/* Top Toolbar */}
-      <header className="flex h-14 items-center justify-between border-b border-[#050038]/10 bg-white px-4">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="flex items-center gap-2 text-[#050038]/60 hover:text-[#050038]">
-            <ArrowLeft size={20} />
-            <span className="font-bold text-[#050038] text-xl">miro</span>
+      <header className="live-analytics-header">
+        <div className="header-left">
+          <button onClick={onBack} className="header-back-link">
+            <span className="icon"><span className="icon"><ArrowLeft size={20} /></span></span>
+            <span className="textColorBlack h3">miro</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center rounded-md border border-[#050038]/10 bg-white p-1">
-            <button onClick={handleZoomOut} className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"><Minus size={16} /></button>
-            <span className="min-w-[48px] text-center text-sm font-medium text-[#050038]">{zoom}%</span>
-            <button onClick={handleZoomIn} className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"><Plus size={16} /></button>
+        <div className="header-left">
+          <div className="zoom-controls">
+            <button onClick={handleZoomOut} className="zoom-btn"><span className="icon"><span className="icon"><Minus size={16} /></span></span></button>
+            <span className="min-w-[48px] text-center p-small  textColorBlack">{zoom}%</span>
+            <button onClick={handleZoomIn} className="zoom-btn"><span className="icon"><span className="icon"><Plus size={16} /></span></span></button>
           </div>
         </div>
 
         <div>
           <button
             onClick={() => toast.info('Beacon search: analyzing board elements...')}
-            className="flex items-center gap-2 rounded-md bg-[#ffd02f] px-4 py-2 text-sm font-semibold text-[#050038] transition-colors hover:bg-[#ffd02f]/90"
+            className="button button-primary header-action-btn"
           >
-            <Search size={16} className="rotate-90" /> Beacon
+            <span className="icon"><span className="icon"><Search size={16} className="rotate-90" /></span></span> Beacon
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="live-analytics-content">
         {/* Left: Board Canvas */}
-        <div className="relative flex-1 bg-[#fafafa] overflow-auto">
-          <div className="absolute inset-0 flex items-center justify-center p-8 min-w-[1000px] min-h-[800px]">
+        <div className="live-analytics-board">
+          <div className="board-wrapper">
             <div
               ref={boardRef}
-              className="relative bg-white shadow-lg rounded-sm overflow-hidden border border-[#050038]/10"
+              className="board-surface"
               style={{ height: `${boardHeight * zoom / 100}px`, width: `${boardWidth * zoom / 100}px`, transition: 'all 0.2s ease' }}
             >
               {/* Miro Live Embed */}
               <iframe
-                className="w-full h-full border-0"
+                className="board-iframe"
                 src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true`}
                 allowFullScreen
                 title="Miro Live Embed"
@@ -476,7 +475,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
               {/* ── Real Heatmap Canvas Overlay ─────────────── */}
               {heatmapData.length > 0 && (
-                <div className="absolute inset-0 pointer-events-none z-40">
+                <div className="heatmap-overlay-layer">
                   <HeatmapCanvas
                     data={heatmapData}
                     width={boardWidth * zoom / 100}
@@ -494,7 +493,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   return (
                     <HeatmapZone
                       intensity="high"
-                      className="w-32 h-24 z-10 -translate-x-1/2 -translate-y-1/2"
+                      className="ai-insight-zone"
                       style={{ top: `${coords.y}%`, left: `${coords.x}%` }}
                       insight={{
                         title: aiInsights[0]?.insights.patterns[0] || 'High Activity Zone',
@@ -510,29 +509,29 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
         </div>
 
         {/* Right Sidebar: Analytics Panel */}
-        <div className="w-[480px] flex-shrink-0 border-l border-[#050038]/10 bg-white shadow-[-4px_0_16px_rgba(5,0,56,0.05)] flex flex-col">
+        <div className="live-analytics-sidebar">
           {/* Panel Header */}
-          <div className="p-6 border-b border-[#050038]/10">
-            <h2 className="text-lg font-semibold text-[#050038]">{selectedTest.name}</h2>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+          <div className="sidebar-header">
+            <h2 className="p-large  textColorBlack">{selectedTest.name}</h2>
+            <div className="sidebar-header-row">
+              <div className="sidebar-header-stats">
                 {getStatusBadge()}
-                <span className="text-sm text-[#050038]/60">{liveParticipants} participants</span>
+                <span className="p-small textColorNeutral600">{liveParticipants} participants</span>
               </div>
-              <div className="flex items-center gap-4 text-[#050038]/60">
-                <button onClick={() => toast.info('Test settings — feature coming soon')} className="hover:text-[#050038]" title="Test Settings"><Settings size={20} /></button>
+              <div className="sidebar-header-actions">
+                <button onClick={() => toast.info('Test settings — feature coming soon')} className="hover:textColorBlack" title="Test Settings"><span className="icon"><span className="icon"><Settings size={20} /></span></span></button>
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting') && (
-                  <button onClick={handlePauseTest} className="hover:text-[#050038]"><Pause size={20} /></button>
+                  <button onClick={handlePauseTest} className="hover:textColorBlack"><span className="icon"><span className="icon"><Pause size={20} /></span></span></button>
                 )}
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting' || selectedTest.status === 'paused') && (
-                  <button onClick={handleStopTest} className="hover:text-[#050038] text-[#050038]"><Square size={20} fill="currentColor" /></button>
+                  <button onClick={handleStopTest} className="hover:textColorBlack textColorBlack"><span className="icon"><span className="icon"><Square size={20} fill="currentColor" /></span></span></button>
                 )}
               </div>
             </div>
           </div>
 
           {/* Tab Navigation */}
-          <div className="px-6 border-b border-[#050038]/10">
+          <div className="sidebar-tabs-container">
             <div className="flex gap-6">
               {['Overview', 'Heatmap', 'Flow', 'AI Insights'].map((tab) => {
                 const id = tab.toLowerCase().split(' ')[0] as any;
@@ -540,12 +539,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(id)}
-                    className={cn(
-                      "py-3 text-sm font-semibold transition-colors border-b-2",
-                      activeTab === id ? "border-[#4262ff] text-[#4262ff]" : "border-transparent text-[#050038]/60 hover:text-[#050038]"
+                    className={cn("py-3 p-small  transition-colors border-b-2",
+                      activeTab === id ?"border-[var(--blue500)] textColorBlue500" :"border-transparent textColorNeutral600 hover:textColorBlack"
                     )}
                   >
-                    {tab === 'AI Insights' && <Lightbulb size={14} className="inline mr-1 mb-0.5" />}
+                    {tab === 'AI Insights' && <span className="icon"><span className="icon"><Lightbulb size={14} className="inline mr-1 mb-0.5" /></span></span>}
                     {tab}
                   </button>
                 );
@@ -554,59 +552,59 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="sidebar-content-scroll">
 
             {/* ═══ OVERVIEW TAB ═══ */}
             {activeTab === 'overview' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="sidebar-tab-content">
                 {analyticsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-[#4262ff]" />
-                    <span className="ml-2 text-sm text-[#050038]/60">Loading analytics...</span>
+                  <div className="loading-indicator">
+                    <span className="icon"><span className="icon"><Loader2 size={24} className="animate-spin textColorBlue500" /></span></span>
+                    <span className="ml-2 p-small textColorNeutral600">Loading analytics...</span>
                   </div>
                 ) : (
                   <>
                     {/* Quick Stats Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid">
                       {selectedTest.type === 'live-session' ? (
                         <>
-                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                          <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="text-3xl font-bold text-[#050038]">{liveParticipants}</span>
-                              <Users size={16} className="text-[#4262ff]" />
+                              <span className="h1  textColorBlack">{liveParticipants}</span>
+                              <span className="icon"><span className="icon"><Users size={16} className="textColorBlue500" /></span></span>
                             </div>
-                            <span className="text-xs text-[#050038]/60 mt-1 block">Live Participants</span>
+                            <span className="p-xsmall textColorNeutral600 mt-1 block">Live Participants</span>
                           </div>
-                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                          <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="text-3xl font-bold text-[#050038]">{liveClicks}</span>
-                              <MousePointer2 size={16} className="text-[#4262ff]" />
+                              <span className="h1  textColorBlack">{liveClicks}</span>
+                              <span className="icon"><span className="icon"><MousePointer2 size={16} className="textColorBlue500" /></span></span>
                             </div>
-                            <span className="text-xs text-[#050038]/60 mt-1 block">Live Clicks</span>
+                            <span className="p-xsmall textColorNeutral600 mt-1 block">Live Clicks</span>
                           </div>
                         </>
                       ) : (
                         <>
-                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                          <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="text-3xl font-bold text-[#050038]">{statsSessions}</span>
-                              <Users size={16} className="text-[#4262ff]" />
+                              <span className="h1  textColorBlack">{statsSessions}</span>
+                              <span className="icon"><span className="icon"><Users size={16} className="textColorBlue500" /></span></span>
                             </div>
-                            <span className="text-xs text-[#050038]/60 mt-1 block">Total Sessions</span>
+                            <span className="p-xsmall textColorNeutral600 mt-1 block">Total Sessions</span>
                           </div>
-                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                          <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="text-3xl font-bold text-[#050038]">{statsAvgTime}</span>
-                              <Clock size={16} className="text-[#4262ff]" />
+                              <span className="h1  textColorBlack">{statsAvgTime}</span>
+                              <span className="icon"><span className="icon"><Clock size={16} className="textColorBlue500" /></span></span>
                             </div>
-                            <span className="text-xs text-[#050038]/60 mt-1 block">Avg. Session Time</span>
+                            <span className="p-xsmall textColorNeutral600 mt-1 block">Avg. Session Time</span>
                           </div>
-                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                          <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                             <div className="flex justify-between items-start">
-                              <span className="text-3xl font-bold text-[#050038]">{statsCompletion}</span>
-                              <CheckCircle size={16} className="text-[#4262ff]" />
+                              <span className="h1  textColorBlack">{statsCompletion}</span>
+                              <span className="icon"><span className="icon"><CheckCircle size={16} className="textColorBlue500" /></span></span>
                             </div>
-                            <span className="text-xs text-[#050038]/60 mt-1 block">Completion Rate</span>
+                            <span className="p-xsmall textColorNeutral600 mt-1 block">Completion Rate</span>
                           </div>
                         </>
                       )}
@@ -614,31 +612,31 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
                     {/* Session Info */}
                     <div>
-                      <h3 className="text-base font-semibold text-[#050038] mb-3">Session Overview</h3>
-                      <div className="bg-[#fafafa] p-4 rounded-lg space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Total Sessions:</span>
-                          <span className="font-semibold text-[#050038]">{statsSessions}</span>
+                      <h3 className="p-medium  textColorBlack mb-3">Session Overview</h3>
+                      <div className="info-box">
+                        <div className="info-row">
+                          <span className="textColorNeutral600">Total Sessions:</span>
+                          <span className="textColorBlack">{statsSessions}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Participants:</span>
-                          <span className="font-semibold text-[#050038]">{selectedTest.participants.current} / {selectedTest.participants.target}</span>
+                        <div className="info-row">
+                          <span className="textColorNeutral600">Participants:</span>
+                          <span className="textColorBlack">{selectedTest.participants.current} / {selectedTest.participants.target}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Type:</span>
-                          <span className="font-semibold text-[#050038] capitalize">{selectedTest.type.replace('-', ' ')}</span>
+                        <div className="info-row">
+                          <span className="textColorNeutral600">Type:</span>
+                          <span className="textColorBlack capitalize">{selectedTest.type.replace('-', ' ')}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* First-Click Analysis */}
                     <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <h3 className="text-base font-semibold text-[#050038]">Element Analysis</h3>
-                        <Info size={14} className="text-[#050038]/60" />
+                      <div className="section-title-row">
+                        <h3 className="p-medium  textColorBlack">Element Analysis</h3>
+                        <span className="icon"><span className="icon"><Info size={14} className="textColorNeutral600" /></span></span>
                       </div>
                       {firstClickData.length > 0 ? (
-                        <div className="h-48 w-full">
+                        <div style={{ height:"192px", width:"100%" }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart layout="vertical" data={firstClickData} margin={{ left: 0, right: 30 }}>
                               <XAxis type="number" hide />
@@ -653,8 +651,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                           </ResponsiveContainer>
                         </div>
                       ) : (
-                        <div className="bg-[#fafafa] p-4 rounded-lg text-center">
-                          <p className="text-sm text-[#050038]/60">No interaction data yet. Start a test session to collect data.</p>
+                        <div className="empty-state-box">
+                          <p className="p-small textColorNeutral600">No interaction data yet. Start a test session to collect data.</p>
                         </div>
                       )}
                     </div>
@@ -662,19 +660,19 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     {/* Confusion Zones */}
                     {analyticsData?.confusion && analyticsData.confusion.zones.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <h3 className="text-base font-semibold text-[#050038]">Confusion Zones</h3>
-                          <AlertTriangle size={16} className="text-[#ffd02f]" />
+                        <div className="section-title-row">
+                          <h3 className="p-medium  textColorBlack">Confusion Zones</h3>
+                          <span className="icon"><span className="icon"><AlertTriangle size={16} className="textColorYellow500" /></span></span>
                         </div>
                         {analyticsData.confusion.zones.map((zone, i) => (
-                          <div key={i} className="bg-[#ffd02f]/10 border border-[#ffd02f] p-4 rounded-lg mb-2">
-                            <p className="font-medium text-[#050038]">{zone.element}: {zone.description}</p>
-                            <p className="text-xs text-[#050038]/80 mt-1">Confusion score: {zone.score ? zone.score.toFixed(2) : '0.00'}</p>
+                          <div key={i} className="confusion-zone-card">
+                            <p className="textColorBlack">{zone.element}: {zone.description}</p>
+                            <p className="p-xsmall textColorNeutral800 mt-1">Confusion score: {zone.score ? zone.score.toFixed(2) : '0.00'}</p>
                             <button
                               onClick={() => setHighlightZone(!highlightZone)}
-                              className="mt-3 text-sm font-semibold text-[#050038] underline decoration-[#ffd02f] hover:text-[#050038]/80"
+                              className="mt-3 p-small  textColorBlack underline decoration-[#ffd02f] hover:textColorNeutral800"
                             >
-                              {highlightZone ? "Hide on board" : "Highlight on board"}
+                              {highlightZone ?"Hide on board" :"Highlight on board"}
                             </button>
                           </div>
                         ))}
@@ -683,10 +681,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
                     {/* Simulation CTA */}
                     {statsSessions === 0 && selectedTest.type !== 'live-session' && (
-                      <div className="bg-[#4262ff]/5 border border-[#4262ff]/20 p-6 rounded-xl text-center mt-6">
-                        <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
-                        <h3 className="text-base font-semibold text-[#050038] mb-2">No data recorded yet</h3>
-                        <p className="text-sm text-[#050038]/60 mb-4">
+                      <div className="bg-[var(--blue500)]/5 border border-[var(--blue500)]/20 p-6 rounded-xl text-center mt-6">
+                        <span className="icon"><span className="icon"><Layers size={32} className="mx-auto mb-4 textColorBlue500" /></span></span>
+                        <h3 className="p-medium  textColorBlack mb-2">No data recorded yet</h3>
+                        <p className="p-small textColorNeutral600 mb-4">
                           Testing your prototype? Simulate random playthroughs to see how beacon generates heatmaps and AI insights.
                         </p>
                         <Button
@@ -702,7 +700,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                           }}
                         >
                           Simulate 5 Playthroughs
-                        </Button>
+                        </button>
                       </div>
                     )}
                   </>
@@ -712,52 +710,48 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
             {/* ═══ AI INSIGHTS TAB ═══ */}
             {activeTab === 'ai' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="sidebar-tab-content">
                 {/* Generate Button */}
-                <Button
-                  onClick={handleGenerateInsights}
-                  disabled={aiLoading}
-                  className="w-full justify-center"
-                >
+                <button type="button" onClick={handleGenerateInsights} disabled={aiLoading} className="button button-primary w-full">
                   {aiLoading ? (
-                    <><Loader2 size={14} className="mr-2 animate-spin" /> Generating insights...</>
+                    <><span className="icon"><span className="icon"><Loader2 size={14} className="mr-2 animate-spin" /></span></span> Generating insights...</>
                   ) : (
-                    <><Lightbulb size={14} className="mr-2" /> Generate AI Insights</>
+                    <><span className="icon"><span className="icon"><Lightbulb size={14} className="mr-2" /></span></span> Generate AI Insights</>
                   )}
-                </Button>
+                </button>
 
                 {aiLoading ? (
-                  <div className="space-y-4">
-                    <div className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm animate-pulse">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="h-6 w-6 bg-[#050038]/10 rounded-full"></div>
-                        <div className="h-4 w-16 bg-[#050038]/10 rounded"></div>
+                  <div className="ai-loading-container">
+                    <div className="ai-loading-card">
+                      <div className="card-header-row">
+                        <div className="skeleton-avatar"></div>
+                        <div className="skeleton-line-small"></div>
                       </div>
-                      <div className="h-4 w-full bg-[#050038]/10 rounded mb-2"></div>
-                      <div className="h-4 w-3/4 bg-[#050038]/10 rounded mb-6"></div>
-                      <div className="h-3 w-32 bg-[#050038]/10 rounded mb-3"></div>
-                      <div className="space-y-2 mb-6">
-                        <div className="h-3 w-5/6 bg-[#050038]/10 rounded"></div>
-                        <div className="h-3 w-4/6 bg-[#050038]/10 rounded"></div>
+                      <div className="skeleton-line-full"></div>
+                      <div className="skeleton-line-3-4"></div>
+                      <div className="skeleton-line-med"></div>
+                      <div className="skeleton-block">
+                        <div className="skeleton-line-5-6"></div>
+                        <div className="skeleton-line-4-6"></div>
                       </div>
-                      <div className="h-5 w-20 bg-[#050038]/10 rounded-full"></div>
+                      <div className="skeleton-pill"></div>
                     </div>
                   </div>
                 ) : aiError ? (
-                  <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-center">
-                    <AlertTriangle size={32} className="mx-auto mb-4 text-red-500" />
-                    <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
-                    <p className="text-sm text-red-600 mb-4">{aiError}</p>
-                    <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
-                      <RefreshCw size={14} className="mr-2" /> Retry Analysis
-                    </Button>
+                  <div className="ai-error-box">
+                    <span className="icon"><span className="icon"><AlertTriangle size={32} className="ai-error-icon" /></span></span>
+                    <h3 className="ai-error-title">Analysis failed to generate</h3>
+                    <p className="ai-error-msg">{aiError}</p>
+                    <button type="button" onClick={handleGenerateInsights} className="button button-secondary ai-error-btn">
+                      <span className="icon"><span className="icon"><RefreshCw size={14} className="mr-2" /></span></span> Retry Analysis
+                    </button>
                   </div>
                 ) : aiInsights.length === 0 ? (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Lightbulb size={32} className="mx-auto mb-4 text-[#ffd02f]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No insights yet</h3>
-                    <p className="text-sm text-[#050038]/60">
-                      Click "Generate AI Insights" to analyze your test sessions.
+                  <div className="empty-state-box large">
+                    <span className="icon"><span className="icon"><Lightbulb size={32} className="mx-auto mb-4 textColorYellow500" /></span></span>
+                    <h3 className="p-medium  textColorBlack mb-2">No insights yet</h3>
+                    <p className="p-small textColorNeutral600">
+                      Click"Generate AI Insights" to analyze your test sessions.
                       The AI will review participant behavior and provide actionable recommendations.
                     </p>
                   </div>
@@ -765,43 +759,42 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
                 {/* Real insight cards */}
                 {aiInsights.map((insight, idx) => (
-                  <div key={insight._id || idx} className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm">
-                    <div className="flex items-start justify-between mb-4">
-                      <Lightbulb className="text-[#ffd02f] flex-shrink-0" size={24} />
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-[#050038]/40">{insight.provider}</span>
+                  <div key={insight._id || idx} className="ai-insight-card">
+                    <div className="card-header-row">
+                      <span className="icon"><span className="icon"><Lightbulb className="textColorYellow500 flex-shrink-0" size={24} /></span></span>
+                      <div className="sidebar-header-stats">
+                        <span className="p-xsmall font-mono textColorNeutral400">{insight.provider}</span>
                         {insight.cost > 0 && (
-                          <span className="text-xs text-[#050038]/40">${insight.cost.toFixed(4)}</span>
+                          <span className="p-xsmall textColorNeutral400">${insight.cost.toFixed(4)}</span>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm text-[#050038]/70 leading-relaxed mb-4">{insight.insights.summary}</p>
+                    <p className="p-small textColorNeutral700 leading-relaxed mb-4">{insight.insights.summary}</p>
                     {insight.insights.patterns.length > 0 && (
-                      <div className="mb-4">
-                        <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Patterns detected:</span>
-                        <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
+                      <div className="mb-16px">
+                        <span className="p-xsmall  textColorNeutral600 block mb-2">Patterns detected:</span>
+                        <ul className="p-small textColorNeutral700 space-y-1 list-disc pl-4">
                           {insight.insights.patterns.map((p, i) => <li key={i}>{p}</li>)}
                         </ul>
                       </div>
                     )}
                     {insight.insights.recommendations.length > 0 && (
-                      <div className="mb-4">
-                        <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Recommendations:</span>
-                        <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
+                      <div className="mb-16px">
+                        <span className="p-xsmall  textColorNeutral600 block mb-2">Recommendations:</span>
+                        <ul className="p-small textColorNeutral700 space-y-1 list-disc pl-4">
                           {insight.insights.recommendations.map((r, i) => <li key={i}>{r}</li>)}
                         </ul>
                       </div>
                     )}
                     <div className="flex items-center gap-2 mt-3">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-full text-xs font-semibold",
+                      <span className={cn("px-2 py-0.5 rounded-full p-xsmall",
                         insight.insights.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
                           insight.insights.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
                             'bg-gray-100 text-gray-700'
                       )}>
                         {insight.insights.sentiment}
                       </span>
-                      <span className="text-xs text-[#050038]/40">
+                      <span className="p-xsmall textColorNeutral400">
                         {new Date(insight.generatedAt).toLocaleString()}
                       </span>
                     </div>
@@ -812,7 +805,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         onClick={() => { setShowAiOnBoard(!showAiOnBoard); toast.info(showAiOnBoard ? 'Insight hidden from board' : 'Insight shown on board'); }}
                       >
                         {showAiOnBoard ? 'Hide from board' : 'Show on board'}
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -821,7 +814,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
             {/* ═══ HEATMAP TAB ═══ */}
             {activeTab === 'heatmap' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="sidebar-tab-content">
                 <Button
                   onClick={handleGenerateHeatmap}
                   disabled={heatmapLoading}
@@ -829,70 +822,70 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   className="w-full justify-center"
                 >
                   {heatmapLoading ? (
-                    <><Loader2 size={14} className="mr-2 animate-spin" /> Generating...</>
+                    <><span className="icon"><span className="icon"><Loader2 size={14} className="mr-2 animate-spin" /></span></span> Generating...</>
                   ) : (
-                    <><RefreshCw size={14} className="mr-2" /> Generate Heatmap from Sessions</>
+                    <><span className="icon"><span className="icon"><RefreshCw size={14} className="mr-2" /></span></span> Generate Heatmap from Sessions</>
                   )}
-                </Button>
+                </button>
 
                 <div>
-                  <h3 className="text-base font-semibold text-[#050038] mb-3">Heatmap Legend</h3>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-[#ef4444]" />
-                      <span className="text-xs text-[#050038]/60">High activity</span>
+                  <h3 className="p-medium  textColorBlack mb-3">Heatmap Legend</h3>
+                  <div className="heatmap-legend-row">
+                    <div className="sidebar-header-stats">
+                      <div className="legend-dot red" />
+                      <span className="p-xsmall textColorNeutral600">High activity</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-[#ffd02f]" />
-                      <span className="text-xs text-[#050038]/60">Medium</span>
+                    <div className="sidebar-header-stats">
+                      <div className="legend-dot yellow" />
+                      <span className="p-xsmall textColorNeutral600">Medium</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-[#4262ff]" />
-                      <span className="text-xs text-[#050038]/60">Low</span>
+                    <div className="sidebar-header-stats">
+                      <div className="legend-dot blue" />
+                      <span className="p-xsmall textColorNeutral600">Low</span>
                     </div>
                   </div>
                   <div className="h-4 w-full rounded-full bg-gradient-to-r from-[#4262ff] via-[#00ff88] via-[#ffd02f] to-[#ef4444] mb-2" />
-                  <div className="flex justify-between text-[10px] text-[#050038]/40">
+                  <div className="flex justify-between text-[10px] textColorNeutral400">
                     <span>Low</span>
                     <span>High</span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-base font-semibold text-[#050038] mb-3">Click Distribution</h3>
+                  <h3 className="p-medium  textColorBlack mb-3">Click Distribution</h3>
                   {clickDistribution.length > 0 ? (
                     <div className="space-y-3">
                       {clickDistribution.map((item) => (
-                        <div key={item.element} className="bg-[#fafafa] p-3 rounded-lg">
+                        <div key={item.element} className="bg-[var(--neutral100)] p-3 rounded-lg">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-medium text-[#050038]">{item.element}</span>
-                            <span className="text-sm font-bold text-[#050038]">{item.clicks} clicks ({item.pct}%)</span>
+                            <span className="p-small  textColorBlack">{item.element}</span>
+                            <span className="p-small  textColorBlack">{item.clicks} clicks ({item.pct}%)</span>
                           </div>
-                          <div className="h-2 rounded-full bg-[#050038]/10">
+                          <div className="h-2 rounded-full bg-[var(--neutral900)]/10">
                             <div className="h-full rounded-full transition-all" style={{ width: `${item.pct}%`, backgroundColor: item.color }} />
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="bg-[#fafafa] p-4 rounded-lg text-center">
-                      <p className="text-sm text-[#050038]/60">No click data yet. Generate a heatmap to see distribution.</p>
+                    <div className="empty-state-box">
+                      <p className="p-small textColorNeutral600">No click data yet. Generate a heatmap to see distribution.</p>
                     </div>
                   )}
                 </div>
 
                 {heatmapData.length === 0 ? (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Layers size={32} className="mx-auto mb-4 text-[#ffd02f]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No heatmap generated yet</h3>
-                    <p className="text-sm text-[#050038]/60">
+                  <div className="empty-state-box large">
+                    <span className="icon"><span className="icon"><Layers size={32} className="mx-auto mb-4 textColorYellow500" /></span></span>
+                    <h3 className="p-medium  textColorBlack mb-2">No heatmap generated yet</h3>
+                    <p className="p-small textColorNeutral600">
                       Start a session or click 'Generate Heatmap' to analyze historical data.
                     </p>
                   </div>
                 ) : (
-                  <div className="bg-[#fafafa] p-4 rounded-lg">
-                    <p className="text-xs text-[#050038]/60">
-                      <Info size={12} className="inline mr-1" />
+                  <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
+                    <p className="p-xsmall textColorNeutral600">
+                      <span className="icon"><span className="icon"><Info size={12} className="inline mr-1" /></span></span>
                       Showing {heatmapData.length} data points on the board canvas.
                     </p>
                   </div>
@@ -902,52 +895,52 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
             {/* ═══ FLOW TAB ═══ */}
             {activeTab === 'flow' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="sidebar-tab-content">
                 <div>
-                  <h3 className="text-base font-semibold text-[#050038] mb-3">Task Flow Analysis</h3>
-                  <p className="text-sm text-[#050038]/60 mb-4">User navigation paths through the prototype</p>
+                  <h3 className="p-medium  textColorBlack mb-3">Task Flow Analysis</h3>
+                  <p className="p-small textColorNeutral600 mb-4">User navigation paths through the prototype</p>
                 </div>
 
                 {flowLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-[#4262ff]" />
-                    <span className="ml-2 text-sm text-[#050038]/60">Loading flow data...</span>
+                  <div className="loading-indicator">
+                    <span className="icon"><span className="icon"><Loader2 size={24} className="animate-spin textColorBlue500" /></span></span>
+                    <span className="ml-2 p-small textColorNeutral600">Loading flow data...</span>
                   </div>
                 ) : flowData.length > 0 ? (
                   <div className="space-y-3">
                     {flowData.map((flow, i) => (
                       <div key={i}>
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 rounded-lg bg-white border border-[#050038]/10 p-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-[#050038]">{flow.path.join(' → ')}</span>
-                              <span className="text-sm font-bold text-[#4262ff]">{flow.percentage}%</span>
+                        <div className="flow-item">
+                          <div className="flow-bar-container">
+                            <div className="flow-bar-header">
+                              <span className="p-small  textColorBlack">{flow.path.join(' → ')}</span>
+                              <span className="p-small  textColorBlue500">{flow.percentage}%</span>
                             </div>
-                            <div className="mt-2 h-2 rounded-full bg-[#050038]/10">
-                              <div className="h-full rounded-full bg-[#4262ff] transition-all" style={{ width: `${flow.percentage}%` }} />
+                            <div className="flow-bar-track">
+                              <div className="h-full rounded-full bg-[var(--blue500)] transition-all" style={{ width: `${flow.percentage}%` }} />
                             </div>
-                            <span className="text-xs text-[#050038]/40 mt-1 block">{flow.count} sessions</span>
+                            <span className="p-xsmall textColorNeutral400 mt-1 block">{flow.count} sessions</span>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No flow data yet</h3>
-                    <p className="text-sm text-[#050038]/60">
+                  <div className="empty-state-box large">
+                    <span className="icon"><span className="icon"><Layers size={32} className="mx-auto mb-4 textColorBlue500" /></span></span>
+                    <h3 className="p-medium  textColorBlack mb-2">No flow data yet</h3>
+                    <p className="p-small textColorNeutral600">
                       Flow analysis will appear after participants complete test sessions.
                     </p>
                   </div>
                 )}
 
-                <div className="bg-[#fafafa] p-4 rounded-lg">
+                <div className="cs1 ce6 bg-[var(--neutral100)] p-4 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
-                    <Target size={14} className="text-[#4262ff]" />
-                    <span className="text-sm font-semibold text-[#050038]">Key Insight</span>
+                    <span className="icon"><span className="icon"><Target size={14} className="textColorBlue500" /></span></span>
+                    <span className="p-small  textColorBlack">Key Insight</span>
                   </div>
-                  <p className="text-sm text-[#050038]/70">
+                  <p className="p-small textColorNeutral700">
                     {flowData.length > 0
                       ? `Most common path: ${flowData[0].path.join(' → ')} (${flowData[0].percentage}% of users)`
                       : 'Run test sessions to discover navigation patterns and drop-off points.'
