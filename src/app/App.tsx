@@ -10,8 +10,9 @@ import { BoardCanvas } from "../screens/BoardCanvas";
 import { Templates } from "../screens/Templates";
 import { Settings } from "../screens/Settings";
 import { TestSetupModal } from "../components/TestSetupModal";
-import { TestProvider } from "../contexts/TestContext";
+import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { api, ApiTest } from "../lib/api";
 
 type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings";
 
@@ -47,13 +48,51 @@ function AppContent() {
     setIsModalOpen(false);
   };
 
-  const handleNavigate = (screen: string) => {
-    setCurrentScreen(screen as Screen);
+  const { addTest, selectTest } = useTests();
+
+  const handleOpenBoard = async (boardId: string, boardName: string) => {
+    try {
+      // 1. Instantly create a test for this board in the background
+      const data = await api.post<{ test: ApiTest }>('/api/tests', {
+        name: `${boardName} Analysis`,
+        board: boardId,
+        settings: { maxParticipants: 20 },
+      });
+
+      // 2. Add it to context and select it
+      // Using an internal shape to match context's Test
+      const newTest = {
+        name: data.test.name,
+        description: data.test.tasks?.[0]?.description || '',
+        status: 'live' as const,
+        type: 'live-session' as const,
+        participants: { current: 0, target: 20 },
+        boardUrl: boardId
+      };
+
+      await addTest({
+        name: `${boardName} Analysis`,
+        description: '',
+        status: 'live',
+        type: 'live-session',
+        participants: { current: 0, target: 20 },
+        boardUrl: boardId
+      });
+
+      // Wait a moment for test context to sync, then push to analytics
+      setTimeout(() => {
+        selectTest(data.test._id);
+        setCurrentScreen("analytics");
+      }, 500);
+
+    } catch (err) {
+      toast.error("Failed to initialize board analytics. Please use the 'New Test' button.");
+      console.error(err);
+    }
   };
 
-  const handleOpenBoard = (boardName: string) => {
-    setActiveBoardName(boardName);
-    setCurrentScreen("board-canvas");
+  const handleNavigate = (screen: string) => {
+    setCurrentScreen(screen as Screen);
   };
 
   // Show loading spinner while checking auth
@@ -84,7 +123,7 @@ function AppContent() {
     <TestProvider>
       <div className="min-h-screen font-sans text-[#050038] bg-[#fafafa] antialiased">
         {currentScreen === "boards" && (
-          <Boards onNavigate={handleNavigate} onOpenBoard={handleOpenBoard} onSignOut={handleSignOut} />
+          <Boards onNavigate={handleNavigate} onOpenBoard={(id: string, name: string) => { handleOpenBoard(id, name); }} onSignOut={handleSignOut} />
         )}
 
         {currentScreen === "board-canvas" && (

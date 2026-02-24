@@ -441,55 +441,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
               className="relative bg-white shadow-lg rounded-sm overflow-hidden border border-[#050038]/10"
               style={{ height: `${boardHeight * zoom / 100}px`, width: `${boardWidth * zoom / 100}px`, transition: 'all 0.2s ease' }}
             >
-              {/* Board Content: Mobile App Prototype */}
-              <div className="flex h-full w-full flex-col">
-                {/* Header */}
-                <div className="h-16 w-full bg-[#4262ff] flex items-center justify-between px-8">
-                  <div className="h-8 w-8 bg-white/20 rounded-full"></div>
-                  <div className="flex gap-4">
-                    <div className="h-4 w-16 bg-white/20 rounded"></div>
-                    <div className="h-4 w-16 bg-white/20 rounded"></div>
-                  </div>
-                </div>
-                {/* Hero */}
-                <div className="flex-1 bg-white p-16 flex flex-col items-center justify-center border-b border-[#fafafa] relative">
-                  <h1 className="text-4xl font-bold text-[#050038] mb-4">Transform Your Workflow</h1>
-                  <p className="text-[#050038]/60 mb-8 max-w-md text-center">Collaborate, create, and innovate with our all-in-one platform.</p>
-                  <div className="relative">
-                    <button className="bg-[#ffd02f] text-[#050038] px-8 py-3 rounded-lg font-semibold text-lg shadow-sm">
-                      Sign Up Now
-                    </button>
-                  </div>
-                </div>
-
-                {/* Features */}
-                <div className="h-64 bg-[#fafafa] flex gap-8 p-8 justify-center items-center">
-                  <div className="h-40 w-64 bg-white rounded shadow-sm border border-[#050038]/10"></div>
-                  <div className="h-40 w-64 bg-white rounded shadow-sm border border-[#050038]/10"></div>
-                  <div className="h-40 w-64 bg-white rounded shadow-sm border border-[#050038]/10"></div>
-                </div>
-
-                {/* Pricing / Bottom */}
-                <div className={cn("flex-1 bg-white p-12 flex justify-center transition-all duration-500 relative", highlightZone ? "ring-4 ring-[#ffd02f] bg-[#fafafa]" : "")}>
-                  <div className="w-full max-w-4xl flex gap-8">
-                    <div className="flex-1 h-48 border border-[#050038]/10 rounded-lg p-6">
-                      <div className="h-6 w-24 bg-[#fafafa] rounded mb-4"></div>
-                      <div className="h-4 w-full bg-[#fafafa] rounded mb-2"></div>
-                      <div className="h-4 w-2/3 bg-[#fafafa] rounded"></div>
-                    </div>
-                    <div className="flex-1 h-48 border border-[#050038]/10 rounded-lg p-6 relative">
-                      {highlightZone && (
-                        <div className="absolute inset-0 bg-[#ffd02f]/10 flex items-center justify-center border-2 border-dashed border-[#ffd02f] rounded-lg z-20">
-                          <span className="bg-[#ffd02f] text-[#050038] px-2 py-1 rounded text-xs font-bold">0 Interactions</span>
-                        </div>
-                      )}
-                      <div className="h-6 w-24 bg-[#fafafa] rounded mb-4"></div>
-                      <div className="h-4 w-full bg-[#fafafa] rounded mb-2"></div>
-                      <div className="h-4 w-2/3 bg-[#fafafa] rounded"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Miro Live Embed */}
+              <iframe
+                className="w-full h-full border-0"
+                src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true`}
+                allowFullScreen
+                title="Miro Live Embed"
+              />
 
               {/* ── Real Heatmap Canvas Overlay ─────────────── */}
               {heatmapData.length > 0 && (
@@ -518,17 +476,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   />
                 </>
               )}
-
-              {/* SVG Arrows Layer */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
-                <defs>
-                  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                    <polygon points="0 0, 10 3.5, 0 7" fill="#4262ff" fillOpacity="0.8" />
-                  </marker>
-                </defs>
-                <path d="M 100 100 Q 300 200 600 350" fill="none" stroke="#4262ff" strokeWidth="8" strokeOpacity="0.2" markerEnd="url(#arrowhead)" />
-                <path d="M 100 100 C 100 400 300 600 500 700" fill="none" stroke="#4262ff" strokeWidth="2" strokeOpacity="0.2" markerEnd="url(#arrowhead)" />
-              </svg>
             </div>
           </div>
         </div>

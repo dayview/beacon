@@ -8,7 +8,7 @@ import { api, ApiMiroBoard, getToken } from "../lib/api";
 
 interface BoardsProps {
   onNavigate: (screen: string) => void;
-  onOpenBoard: (boardName: string) => void;
+  onOpenBoard: (boardId: string, boardName: string) => void;
   onSignOut: () => void;
 }
 
@@ -214,7 +214,7 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
                   {filteredBoards.map((board) => (
                     <div
                       key={board.id}
-                      onClick={() => onOpenBoard(board.name)}
+                      onClick={() => onOpenBoard(board.id, board.name)}
                       className="group cursor-pointer rounded-xl bg-white p-4 shadow-[0px_2px_8px_rgba(5,0,56,0.08)] transition-all hover:shadow-[0px_4px_16px_rgba(5,0,56,0.12)]"
                     >
                       {board.picture?.imageURL ? (
@@ -266,7 +266,7 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
                   {filteredBoards.map((board, index) => (
                     <div
                       key={board.id}
-                      onClick={() => onOpenBoard(board.name)}
+                      onClick={() => onOpenBoard(board.id, board.name)}
                       className={`flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-[#fafafa] transition-colors ${index < filteredBoards.length - 1 ? 'border-b border-[#050038]/5' : ''
                         }`}
                     >
