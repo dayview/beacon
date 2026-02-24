@@ -196,6 +196,39 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     }
   }, [selectedTest]);
 
+  // ── Calculate Click Distribution Helper ─────────────────
+  const updateClickDistribution = useCallback((allPoints: { x: number; y: number; intensity: number }[]) => {
+    const total = allPoints.length;
+    if (total > 0) {
+      const zones = [
+        { element: 'Top-Left (CTA area)', color: '#ef4444', count: 0 },
+        { element: 'Top-Right (Nav)', color: '#ffd02f', count: 0 },
+        { element: 'Center (Content)', color: '#4262ff', count: 0 },
+        { element: 'Bottom (Footer)', color: '#050038', count: 0 },
+      ];
+      for (const p of allPoints) {
+        if (p.y < boardHeight / 3) {
+          if (p.x < boardWidth / 2) zones[0].count++;
+          else zones[1].count++;
+        } else if (p.y < (boardHeight * 2) / 3) {
+          zones[2].count++;
+        } else {
+          zones[3].count++;
+        }
+      }
+      setClickDistribution(
+        zones.map(z => ({
+          element: z.element,
+          clicks: z.count,
+          pct: Math.round((z.count / total) * 100),
+          color: z.color,
+        }))
+      );
+    } else {
+      setClickDistribution([]);
+    }
+  }, [boardHeight, boardWidth]);
+
   // ── Fetch heatmap data (only called explicitly, not on mount) ─
   const fetchHeatmap = useCallback(async () => {
     if (!selectedTest) return false;
@@ -206,35 +239,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       if (allHeatmaps.length > 0) {
         const allPoints = allHeatmaps.flatMap(h => h.data);
         setHeatmapData(allPoints);
-
-        // Derive click distribution from heatmap data
-        const total = allPoints.length;
-        if (total > 0) {
-          const zones = [
-            { element: 'Top-Left (CTA area)', color: '#ef4444', count: 0 },
-            { element: 'Top-Right (Nav)', color: '#ffd02f', count: 0 },
-            { element: 'Center (Content)', color: '#4262ff', count: 0 },
-            { element: 'Bottom (Footer)', color: '#050038', count: 0 },
-          ];
-          for (const p of allPoints) {
-            if (p.y < boardHeight / 3) {
-              if (p.x < boardWidth / 2) zones[0].count++;
-              else zones[1].count++;
-            } else if (p.y < (boardHeight * 2) / 3) {
-              zones[2].count++;
-            } else {
-              zones[3].count++;
-            }
-          }
-          setClickDistribution(
-            zones.map(z => ({
-              element: z.element,
-              clicks: z.count,
-              pct: Math.round((z.count / total) * 100),
-              color: z.color,
-            }))
-          );
-        }
+        updateClickDistribution(allPoints);
         return true;
       }
       return false;
@@ -245,7 +250,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     } finally {
       setHeatmapLoading(false);
     }
-  }, [selectedTest]);
+  }, [selectedTest, updateClickDistribution]);
 
   // ── Generate heatmap ──────────────────────────────────
   const handleGenerateHeatmap = useCallback(async () => {
@@ -255,6 +260,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       const data = await api.post<{ heatmap: ApiHeatmap }>(`/api/heatmaps/generate/${selectedTest.id}`, { type: 'click' });
       if (data.heatmap) {
         setHeatmapData(data.heatmap.data);
+        updateClickDistribution(data.heatmap.data);
         toast.success('Heatmap generated from session data');
       }
     } catch (err) {
@@ -262,7 +268,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     } finally {
       setHeatmapLoading(false);
     }
-  }, [selectedTest]);
+  }, [selectedTest, updateClickDistribution]);
 
   // ── Fetch AI insights ─────────────────────────────────
   const fetchAiInsights = useCallback(async () => {
