@@ -663,7 +663,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         {analyticsData.confusion.zones.map((zone, i) => (
                           <div key={i} className="bg-[#ffd02f]/10 border border-[#ffd02f] p-4 rounded-lg mb-2">
                             <p className="font-medium text-[#050038]">{zone.element}: {zone.description}</p>
-                            <p className="text-xs text-[#050038]/80 mt-1">Confusion score: {zone.score.toFixed(2)}</p>
+                            <p className="text-xs text-[#050038]/80 mt-1">Confusion score: {zone.score ? zone.score.toFixed(2) : '0.00'}</p>
                             <button
                               onClick={() => setHighlightZone(!highlightZone)}
                               className="mt-3 text-sm font-semibold text-[#050038] underline decoration-[#ffd02f] hover:text-[#050038]/80"

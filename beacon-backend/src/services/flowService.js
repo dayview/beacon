@@ -98,10 +98,10 @@ export async function computeNavigationPaths(testId, { maxPathLength = 10, topN 
 
     return {
         totalSessions: sessions.length,
-        paths: sortedPaths,
-        transitions: sortedTransitions,
-        dropoffPoints: sortedDropoffs,
-        elementVisits: sortedVisits,
+        paths: sortedPaths || [],
+        transitions: sortedTransitions || [],
+        dropoffPoints: sortedDropoffs || [],
+        elementVisits: sortedVisits || [],
     };
 }
 
@@ -144,7 +144,13 @@ export async function computeScrollDepth(testId, { bucketSize = 100 } = {}) {
     }
 
     if (maxYPerSession.length === 0) {
-        return { totalSessions: 0, avgMaxDepth: 0, depthDistribution: [], dropoffPoint: 0 };
+        return {
+            totalSessions: 0,
+            avgMaxDepth: 0,
+            depthDistribution: [],
+            dropoffPoint: 0,
+            percentiles: { p25: 0, p50: 0, p75: 0 }
+        };
     }
 
     // Sort buckets by Y position
