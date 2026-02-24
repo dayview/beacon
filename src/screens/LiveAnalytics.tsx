@@ -42,6 +42,7 @@ interface LiveAnalyticsProps {
 interface HeatmapZoneProps {
   intensity: 'low' | 'medium' | 'high';
   className?: string;
+  style?: React.CSSProperties;
   insight: {
     title: string;
     cause: string;
@@ -49,7 +50,7 @@ interface HeatmapZoneProps {
   };
 }
 
-const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight }) => {
+const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: customStyle, insight }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
@@ -121,6 +122,7 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, insight
       <div
         ref={zoneRef}
         className={cn("absolute group cursor-pointer", className, style.z)}
+        style={customStyle}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -464,17 +466,21 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
               {/* ── AI Insight zones (shown when AI insights available) ── */}
               {showAiOnBoard && aiInsights.length > 0 && (
-                <>
-                  <HeatmapZone
-                    intensity="high"
-                    className="top-[20%] left-[40%] w-32 h-24 z-10"
-                    insight={{
-                      title: aiInsights[0]?.insights.patterns[0] || 'High Activity Zone',
-                      cause: aiInsights[0]?.insights.summary || 'Real data analysis',
-                      remedy: aiInsights[0]?.insights.recommendations[0] || 'See full insights in AI tab',
-                    }}
-                  />
-                </>
+                (() => {
+                  const coords = getPeakActivityCoords(heatmapData, boardWidth, boardHeight);
+                  return (
+                    <HeatmapZone
+                      intensity="high"
+                      className="w-32 h-24 z-10 -translate-x-1/2 -translate-y-1/2"
+                      style={{ top: `${coords.y}%`, left: `${coords.x}%` }}
+                      insight={{
+                        title: aiInsights[0]?.insights.patterns[0] || 'High Activity Zone',
+                        cause: aiInsights[0]?.insights.summary || 'Real data analysis',
+                        remedy: aiInsights[0]?.insights.recommendations[0] || 'See full insights in AI tab',
+                      }}
+                    />
+                  );
+                })()
               )}
             </div>
           </div>
@@ -822,15 +828,22 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   )}
                 </div>
 
-                <div className="bg-[#fafafa] p-4 rounded-lg">
-                  <p className="text-xs text-[#050038]/60">
-                    <Info size={12} className="inline mr-1" />
-                    {heatmapData.length > 0
-                      ? `Showing ${heatmapData.length} data points on the board canvas.`
-                      : 'Click "Generate Heatmap" to create a real heatmap from recorded session events.'
-                    }
-                  </p>
-                </div>
+                {heatmapData.length === 0 ? (
+                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
+                    <Layers size={32} className="mx-auto mb-4 text-[#ffd02f]" />
+                    <h3 className="text-base font-semibold text-[#050038] mb-2">No heatmap generated yet</h3>
+                    <p className="text-sm text-[#050038]/60">
+                      Start a session or click 'Generate Heatmap' to analyze historical data.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-[#fafafa] p-4 rounded-lg">
+                    <p className="text-xs text-[#050038]/60">
+                      <Info size={12} className="inline mr-1" />
+                      Showing {heatmapData.length} data points on the board canvas.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -902,6 +915,40 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${minutes}m ${secs}s`;
+}
+
+function getPeakActivityCoords(data: { x: number; y: number; intensity: number }[], width: number, height: number): { x: number; y: number } {
+  if (!data || data.length === 0) return { x: 50, y: 50 };
+
+  const gridSize = 40;
+  const grid: Record<string, number> = {};
+
+  for (const point of data) {
+    const col = Math.floor(point.x / gridSize);
+    const row = Math.floor(point.y / gridSize);
+    const key = `${col},${row}`;
+    grid[key] = (grid[key] || 0) + point.intensity;
+  }
+
+  let maxKey = '';
+  let maxVal = -1;
+  for (const key in grid) {
+    if (grid[key] > maxVal) {
+      maxVal = grid[key];
+      maxKey = key;
+    }
+  }
+
+  if (!maxKey) return { x: 50, y: 50 };
+
+  const [col, row] = maxKey.split(',').map(Number);
+  const centerX = (col * gridSize) + (gridSize / 2);
+  const centerY = (row * gridSize) + (gridSize / 2);
+
+  const posX = Math.min(100, Math.max(0, (centerX / width) * 100));
+  const posY = Math.min(100, Math.max(0, (centerY / height) * 100));
+
+  return { x: posX, y: posY };
 }
 
 // ── Icon components (lucide-react doesn't export some) ─────

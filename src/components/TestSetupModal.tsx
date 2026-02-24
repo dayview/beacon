@@ -27,6 +27,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [boards, setBoards] = useState<ApiMiroBoard[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState("");
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
+  const [hasMiroAuthError, setHasMiroAuthError] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -35,9 +36,11 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         try {
           const data = await api.get<{ boards: ApiMiroBoard[] }>("/api/miro/boards");
           setBoards(data.boards);
+          setHasMiroAuthError(false);
           if (data.boards.length > 0) setSelectedBoardId(data.boards[0].id);
         } catch (err) {
           console.error("Failed to fetch boards", err);
+          setHasMiroAuthError(true);
         } finally {
           setIsLoadingBoards(false);
         }
@@ -155,26 +158,36 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
               <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
                 Miro Board <span className="text-[#ffd02f]">*</span>
               </label>
-              <div className="relative">
-                <select
-                  className="flex h-10 w-full appearance-none rounded-md border border-[#050038]/10 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4262ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={selectedBoardId}
-                  onChange={(e) => setSelectedBoardId(e.target.value)}
-                  disabled={isLoadingBoards}
-                >
-                  <option value="" disabled>
-                    {isLoadingBoards ? "Loading boards..." : "Select a board"}
-                  </option>
-                  {boards.map((board) => (
-                    <option key={board.id} value={board.id}>
-                      {board.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <ChevronDown className="h-4 w-4 opacity-50" />
+              {hasMiroAuthError ? (
+                <div className="rounded-md border border-[#ef4444]/20 bg-[#ef4444]/5 p-4 text-sm text-[#ef4444]">
+                  <p className="font-semibold mb-1">Miro is not connected</p>
+                  <p className="mb-3">Please connect your Miro account in Settings first to create tests.</p>
+                  <a href="/settings" className="inline-flex items-center justify-center rounded-md bg-[#ef4444] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#ef4444]/90">
+                    Go to Settings
+                  </a>
                 </div>
-              </div>
+              ) : (
+                <div className="relative">
+                  <select
+                    className="flex h-10 w-full appearance-none rounded-md border border-[#050038]/10 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4262ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={selectedBoardId}
+                    onChange={(e) => setSelectedBoardId(e.target.value)}
+                    disabled={isLoadingBoards}
+                  >
+                    <option value="" disabled>
+                      {isLoadingBoards ? "Loading boards..." : "Select a board"}
+                    </option>
+                    {boards.map((board) => (
+                      <option key={board.id} value={board.id}>
+                        {board.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

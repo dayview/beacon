@@ -120,7 +120,7 @@ function AppContent() {
   }
 
   return (
-    <TestProvider>
+    <>
       <div className="min-h-screen font-sans text-[#050038] bg-[#fafafa] antialiased">
         {currentScreen === "boards" && (
           <Boards onNavigate={handleNavigate} onOpenBoard={(id: string, name: string) => { handleOpenBoard(id, name); }} onSignOut={handleSignOut} />
@@ -166,14 +166,16 @@ function AppContent() {
         />
       </div>
       <Toaster position="top-center" richColors />
-    </TestProvider>
+    </>
   );
 }
 
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <TestProvider>
+        <AppContent />
+      </TestProvider>
     </AuthProvider>
   );
 }

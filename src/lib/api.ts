@@ -1,7 +1,9 @@
 /**
  * Beacon API client — typed HTTP wrapper with JWT auth.
- * All endpoints are proxied via Vite: /api → localhost:3001
  */
+/// <reference types="vite/client" />
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const TOKEN_KEY = 'beacon-token';
 
