@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
 import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
+import { useInteractionCapture } from "../lib/useInteractionCapture";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
@@ -326,6 +327,18 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     }
   }, [selectedTest]);
 
+  // ── Interaction Capture ───────────────────────────────
+  useInteractionCapture({
+    containerRef: boardRef,
+    enabled:
+      selectedTest?.status === 'live' ||
+      selectedTest?.status === 'collecting',
+    sessionId: selectedTest?.id,
+    moveThrottleMs: 100,
+    batchSize: 20,
+    flushIntervalMs: 2000,
+  });
+
   // ── Initial data loads (analytics only — heatmap is on-demand) ──
   useEffect(() => {
     fetchAnalytics();
@@ -468,7 +481,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
               {/* Miro Live Embed */}
               <iframe
                 className="board-iframe"
-                src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true`}
+                src={`https://miro.com/app/live-embed/${((selectedTest as any)?.board as any)?.miroId ?? (selectedTest as any)?.board}/?embedAutoplay=true`}
                 allowFullScreen
                 title="Miro Live Embed"
               />

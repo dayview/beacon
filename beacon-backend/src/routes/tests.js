@@ -239,6 +239,11 @@ router.get(
 
 // ── POST /api/tests/:id/simulate ─────────────────────────────
 router.post('/:id/simulate', auth, objectIdParam('id'), validate, async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({
+            error: 'Simulation is disabled in production.'
+        });
+    }
     try {
         const test = await Test.findOne({ _id: req.params.id, researcher: req.user._id });
         if (!test) return res.status(404).json({ error: 'Test not found or access denied.' });
