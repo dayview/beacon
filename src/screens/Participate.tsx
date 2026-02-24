@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 
 export const Participate: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [boardUrl, setBoardUrl] = useState<string | null>(null);
     const [isDone, setIsDone] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -19,8 +20,11 @@ export const Participate: React.FC = () => {
 
         const socket = getSocket();
 
-        const handleCreated = ({ sessionId }: { sessionId: string }) => {
+        const handleCreated = ({ sessionId, boardId }: { sessionId: string, boardId?: string }) => {
             setSessionId(sessionId);
+            if (boardId) {
+                setBoardUrl(boardId);
+            }
         };
 
         socket.on('session:created', handleCreated);
@@ -71,14 +75,18 @@ export const Participate: React.FC = () => {
                     <div className="flex h-full items-center justify-center p-large text-[#050038]">
                         Thank you for participating!
                     </div>
-                ) : (
+                ) : boardUrl ? (
                     <iframe
-                        src={`https://miro.com/app/live-embed/${testId}/?embedAutoplay=true`}
+                        src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true`}
                         width="100%"
                         height="100%"
                         style={{ border: 'none' }}
                         title="Miro Board"
                     />
+                ) : (
+                    <div className="flex h-full items-center justify-center p-large text-[#050038]">
+                        Loading board...
+                    </div>
                 )}
             </div>
         </div>
