@@ -3,6 +3,11 @@ import Test from '../models/Test.js';
 import Session from '../models/Session.js';
 import auth from '../middleware/auth.js';
 import {
+    exchangeCodeForTokens,
+    fetchBoards,
+    syncBoard,
+} from '../services/miroService.js';
+import {
     testCreateValidation,
     testUpdateValidation,
     testQueryValidation,
@@ -15,11 +20,34 @@ const router = Router();
 // ── POST /api/tests ──────────────────────────────────────────
 router.post('/', auth, testCreateValidation, validate, async (req, res) => {
     try {
-        const { name, board, tasks, settings } = req.body;
+        let { name, board, tasks, settings } = req.body;
+
+        // Determine if 'board' is a MongoDB ObjectId or a Miro ID format.
+        // Miro IDs are base64-like strings (e.g., "uXjVL1W2mU4=")
+        const isMongoId = /^[0-9a-fA-F]{24}$/.test(board);
+
+        let boardObjectId = board;
+
+        // If it's a Miro string ID, try to find or sync the board in our DB first
+        if (!isMongoId) {
+            const Board = (await import('../models/Board.js')).default;
+            let existingBoard = await Board.findOne({ miroId: board });
+
+            if (!existingBoard) {
+                // Not in DB? Sync it from Miro.
+                const boardsList = await fetchBoards(req.user);
+                const targetMiroBoard = boardsList.find(b => b.id === board);
+                if (!targetMiroBoard) {
+                    return res.status(404).json({ error: 'Miro board not found in your connected account.' });
+                }
+                existingBoard = await syncBoard(req.user, targetMiroBoard);
+            }
+            boardObjectId = existingBoard._id;
+        }
 
         const test = await Test.create({
             name,
-            board,
+            board: boardObjectId,
             researcher: req.user._id,
             tasks: tasks || [],
             settings: settings || {},

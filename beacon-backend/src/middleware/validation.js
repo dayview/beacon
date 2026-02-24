@@ -59,7 +59,7 @@ export const testCreateValidation = [
         .notEmpty()
         .withMessage('Test name is required'),
     body('board')
-        .isMongoId()
+        .notEmpty()
         .withMessage('Valid board ID is required'),
     body('tasks')
         .optional()
