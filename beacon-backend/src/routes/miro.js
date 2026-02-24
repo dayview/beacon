@@ -13,7 +13,7 @@ const router = Router();
 // Step 1: Initiate OAuth - redirect user to Miro's auth screen
 // The Beacon JWT is passed as 'state' so we can recover the user after redirect
 router.get('/authorize', auth, (req, res) => {
-    const state = req.headers.authorization?.split(' ')[1]; // the Beacon JWT
+    const state = req.token; // the Beacon JWT
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.MIRO_CLIENT_ID,
