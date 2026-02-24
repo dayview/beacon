@@ -20,7 +20,7 @@ const router = Router();
 // ── POST /api/tests ──────────────────────────────────────────
 router.post('/', auth, testCreateValidation, validate, async (req, res) => {
     try {
-        let { name, board, tasks, settings } = req.body;
+        let { name, board, tasks, settings, type, status } = req.body;
 
         // Determine if 'board' is a MongoDB ObjectId or a Miro ID format.
         // Miro IDs are base64-like strings (e.g., "uXjVL1W2mU4=")
@@ -47,8 +47,10 @@ router.post('/', auth, testCreateValidation, validate, async (req, res) => {
 
         const test = await Test.create({
             name,
+            type: type || 'solo',
             board: boardObjectId,
             researcher: req.user._id,
+            status: status === 'active' || status === 'live' ? 'active' : 'draft',
             tasks: tasks || [],
             settings: settings || {},
         });
@@ -234,5 +236,58 @@ router.get(
         }
     }
 );
+
+// ── POST /api/tests/:id/simulate ─────────────────────────────
+router.post('/:id/simulate', auth, objectIdParam('id'), validate, async (req, res) => {
+    try {
+        const test = await Test.findOne({ _id: req.params.id, researcher: req.user._id });
+        if (!test) return res.status(404).json({ error: 'Test not found or access denied.' });
+
+        const sessionsToCreate = req.body.count || 5;
+        const newSessions = [];
+
+        for (let i = 0; i < sessionsToCreate; i++) {
+            const events = [];
+            const numEvents = Math.floor(Math.random() * 20) + 10;
+
+            // Generate some random clustered clicks
+            const clusterX = Math.random() * 800 + 200;
+            const clusterY = Math.random() * 400 + 100;
+
+            for (let j = 0; j < numEvents; j++) {
+                events.push({
+                    type: 'click',
+                    timestamp: new Date(Date.now() - Math.random() * 100000),
+                    coordinates: {
+                        x: clusterX + (Math.random() * 200 - 100), // Random jitter around cluster
+                        y: clusterY + (Math.random() * 150 - 75)
+                    }
+                });
+            }
+
+            const session = new Session({
+                test: test._id,
+                status: 'completed',
+                events,
+                metrics: {
+                    taskCompletionRate: Math.random() > 0.3 ? 100 : 0,
+                    clickCount: numEvents,
+                    pathEfficiency: Math.random() * 100
+                },
+                startedAt: new Date(Date.now() - 3600000),
+                completedAt: new Date()
+            });
+
+            newSessions.push(session.save());
+        }
+
+        await Promise.all(newSessions);
+
+        res.json({ success: true, count: sessionsToCreate });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Test simulate error:`, error);
+        res.status(500).json({ error: 'Failed to simulate sessions.' });
+    }
+});
 
 export default router;

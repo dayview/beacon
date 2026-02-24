@@ -94,8 +94,8 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
               <div className="flex flex-col items-center gap-2">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors ${step >= s
-                      ? "bg-[#4262ff] text-white"
-                      : "border border-[#050038]/10 bg-white text-[#050038]/60"
+                    ? "bg-[#4262ff] text-white"
+                    : "border border-[#050038]/10 bg-white text-[#050038]/60"
                     }`}
                 >
                   {s}
@@ -142,17 +142,19 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
-                Target Participants
-              </label>
-              <Input
-                type="number"
-                min="1"
-                value={targetParticipants}
-                onChange={(e) => setTargetParticipants(parseInt(e.target.value) || 1)}
-              />
-            </div>
+            {mode === 'solo' && (
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                  Target Participants
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={targetParticipants}
+                  onChange={(e) => setTargetParticipants(parseInt(e.target.value) || 1)}
+                />
+              </div>
+            )}
 
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
@@ -196,8 +198,8 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div
               className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${mode === "live-session"
-                  ? "border-[#4262ff] bg-[#4262ff]/5"
-                  : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
+                ? "border-[#4262ff] bg-[#4262ff]/5"
+                : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
                 }`}
               onClick={() => setMode("live-session")}
             >
@@ -216,8 +218,8 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
 
             <div
               className={`cursor-pointer rounded-xl border-2 p-5 transition-colors ${mode === "solo"
-                  ? "border-[#4262ff] bg-[#4262ff]/5"
-                  : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
+                ? "border-[#4262ff] bg-[#4262ff]/5"
+                : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
                 }`}
               onClick={() => setMode("solo")}
             >
@@ -250,10 +252,12 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                     {mode === 'live-session' ? 'Live Session' : 'Solo Test'}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#050038]/60">Target:</span>
-                  <span className="font-semibold text-[#050038]">{targetParticipants} participants</span>
-                </div>
+                {mode === 'solo' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#050038]/60">Target:</span>
+                    <span className="font-semibold text-[#050038]">{targetParticipants} participants</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

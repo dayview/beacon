@@ -103,6 +103,12 @@ export const api = {
 
     fetchHeatmapProps: (testId: string) =>
         request<{ heatmaps: ApiHeatmap[] }>(`/api/heatmaps/${testId}`),
+
+    simulateTest: (testId: string, count: number = 5) =>
+        request<{ success: boolean; count: number }>(`/api/tests/${testId}/simulate`, {
+            method: 'POST',
+            body: JSON.stringify({ count }),
+        }),
 };
 
 // ── API Type Definitions ────────────────────────────────────
