@@ -7,9 +7,9 @@ import { toast } from "sonner";
 
 export const Login: React.FC = () => {
     const { login, register } = useAuth();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [name, setName] = useState("");
+    const [email, setEmail] = useState("reviewer@example.com");
+    const [password, setPassword] = useState("password123");
+    const [name, setName] = useState("Technical Reviewer");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");

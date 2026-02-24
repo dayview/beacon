@@ -219,13 +219,29 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
                     >
                       {board.picture?.imageURL ? (
                         <img
-                          src={board.picture.imageURL}
+                          src={`/api/miro/thumbnails/${board.id}?token=${getToken()}&url=${encodeURIComponent(board.picture.imageURL)}`}
                           alt={board.name}
                           className="aspect-video w-full rounded-lg mb-4 object-cover bg-[#fafafa]"
+                          onError={(e) => {
+                            // Fallback to initial if image fails
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.removeAttribute('style');
+                            (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                          }}
                         />
                       ) : (
                         <div
                           className="aspect-video w-full rounded-lg mb-4 flex items-center justify-center text-white font-semibold text-lg"
+                          style={{ backgroundColor: boardColor(board.name) }}
+                        >
+                          {board.name.charAt(0)}
+                        </div>
+                      )}
+
+                      {/* Hidden fallback div for onError routing */}
+                      {board.picture?.imageURL && (
+                        <div
+                          className="aspect-video w-full rounded-lg mb-4 items-center justify-center text-white font-semibold text-lg hidden"
                           style={{ backgroundColor: boardColor(board.name) }}
                         >
                           {board.name.charAt(0)}
@@ -255,11 +271,24 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
                         }`}
                     >
                       {board.picture?.imageURL ? (
-                        <img
-                          src={board.picture.imageURL}
-                          alt={board.name}
-                          className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
-                        />
+                        <>
+                          <img
+                            src={`/api/miro/thumbnails/${board.id}?token=${getToken()}&url=${encodeURIComponent(board.picture.imageURL)}`}
+                            alt={board.name}
+                            className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.removeAttribute('style');
+                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                            }}
+                          />
+                          <div
+                            className="h-10 w-10 rounded-lg items-center justify-center text-white font-semibold text-sm flex-shrink-0 hidden"
+                            style={{ backgroundColor: boardColor(board.name) }}
+                          >
+                            {board.name.charAt(0)}
+                          </div>
+                        </>
                       ) : (
                         <div
                           className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"

@@ -38,18 +38,24 @@ async function request<T>(
         headers,
     });
 
+    const data = await response.json().catch(() => ({}));
+
     // Handle 401 — token expired or invalid
-    if (response.status === 401) {
+    if (response.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/register')) {
         clearToken();
         window.dispatchEvent(new CustomEvent('beacon:auth-expired'));
         throw new ApiError('Session expired. Please log in again.', 401);
     }
 
-    const data = await response.json();
-
     if (!response.ok) {
+        // If it's a validation error, try to extract the specific details
+        let errorMessage = data.error || `Request failed (${response.status})`;
+        if (data.details && Array.isArray(data.details)) {
+            errorMessage = data.details.map((d: any) => d.message).join(', ');
+        }
+
         throw new ApiError(
-            data.error || `Request failed (${response.status})`,
+            errorMessage,
             response.status,
             data
         );

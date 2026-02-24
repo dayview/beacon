@@ -83,6 +83,62 @@ router.get('/boards', auth, async (req, res) => {
     }
 });
 
+// ── GET /api/miro/thumbnails/:boardId ────────────────────────
+// Proxy board thumbnails, as the raw imageURL requires Auth headers
+router.get('/thumbnails/:boardId', async (req, res) => {
+    try {
+        // Allow query param token for simple <img> src usage
+        const token = req.query.token;
+        if (!token) return res.status(401).send('Unauthorized');
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch {
+            return res.status(401).send('Invalid token');
+        }
+
+        const User = (await import('../models/User.js')).default;
+        const user = await User.findById(decoded.id);
+        if (!user) return res.status(401).send('User not found');
+
+        const { getValidToken } = await import('../services/miroService.js');
+        const miroToken = await getValidToken(user);
+
+        // Use the board picture URL if passed in query, else fetch it
+        let imageUrl = req.query.url;
+        if (!imageUrl) {
+            const response = await fetch(`https://api.miro.com/v2/boards/${req.params.boardId}`, {
+                headers: { Authorization: `Bearer ${miroToken}` }
+            });
+            if (!response.ok) return res.status(404).send('Board not found');
+            const data = await response.json();
+            imageUrl = data.picture?.imageURL;
+        }
+
+        if (!imageUrl) {
+            return res.status(404).send('No thumbnail available');
+        }
+
+        // Fetch the actual image binary
+        const imageRes = await fetch(imageUrl, {
+            headers: { Authorization: `Bearer ${miroToken}` }
+        });
+
+        if (!imageRes.ok) return res.status(imageRes.status).send('Failed to fetch image');
+
+        const contentType = imageRes.headers.get('content-type');
+        res.set('Content-Type', contentType);
+
+        const buffer = await imageRes.arrayBuffer();
+        res.send(Buffer.from(buffer));
+
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Miro thumbnail error:`, error);
+        res.status(500).send('Thumbnail fetch failed');
+    }
+});
+
 // ── POST /api/miro/sync/:boardId ─────────────────────────────
 router.post('/sync/:boardId', auth, async (req, res) => {
     try {

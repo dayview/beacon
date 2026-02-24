@@ -73,7 +73,7 @@ export async function refreshAccessToken(user) {
 /**
  * Get a valid access token for the user, refreshing if expired.
  */
-async function getValidToken(user) {
+export async function getValidToken(user) {
     const tokens = user.getMiroTokens();
     if (!tokens.accessToken) {
         throw new Error('Miro not connected. Please authorize via OAuth.');
