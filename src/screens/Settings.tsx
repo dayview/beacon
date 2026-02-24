@@ -1,9 +1,10 @@
 import React, { useState, useRef } from "react";
-import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2 } from "lucide-react";
+import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2, Link2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
+import { getToken } from "../lib/api";
 
 interface SettingsProps {
   onNavigate: (screen: string) => void;
@@ -48,6 +49,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    { id: 'integrations', label: 'Integrations', icon: Link2 },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'billing', label: 'Billing', icon: CreditCard },
@@ -171,6 +173,45 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
             {/* Content */}
             <div className="flex-1">
               <div className="rounded-xl bg-white p-8 shadow-[0px_2px_8px_rgba(5,0,56,0.08)]">
+                {/* Integrations Tab */}
+                {activeTab === 'integrations' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-xl font-bold text-[#050038] mb-4">Integrations</h2>
+                      <p className="text-sm text-[#050038]/60 mb-6">Manage connected apps and services.</p>
+                    </div>
+
+                    <div className="rounded-xl border border-[#050038]/10 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#ffd02f]/20">
+                          <span className="text-xl font-bold text-[#050038] tracking-tighter">miro</span>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-[#050038] mb-1">Miro</h3>
+                          <p className="text-sm text-[#050038]/60">Link boards and run usability tests</p>
+                        </div>
+                      </div>
+
+                      {user?.hasMiroConnected ? (
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1.5 text-sm font-semibold text-[#10b981] bg-[#10b981]/10 px-3 py-1.5 rounded-full">
+                            <CheckCircle2 size={16} />
+                            Connected
+                          </span>
+                        </div>
+                      ) : (
+                        <Button variant="primary" onClick={() => {
+                          const token = getToken();
+                          window.location.href = `/api/miro/authorize?token=${token}`;
+                        }}>
+                          <Link2 size={16} className="mr-2" />
+                          Connect Miro
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Profile Tab */}
                 {activeTab === 'profile' && (
                   <div className="space-y-6">
