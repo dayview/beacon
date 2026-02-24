@@ -1,5 +1,5 @@
   ## Beacon
-  A native usability testing & analytics platform concept that transforms Miro boards into research labs with real-time heatmaps, AI insights, and statistical data.
+  A native usability testing & analytics platform that transforms Miro boards with real-time heatmaps and AI insights.
 
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
   [![React](https://img.shields.io/badge/React-18.3-61dafb)](https://react.dev/)
