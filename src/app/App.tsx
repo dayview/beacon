@@ -30,11 +30,11 @@ function AppContent() {
       refreshUser();
       toast.success('Miro connected successfully!');
       window.history.replaceState({}, '', '/');
-      setCurrentScreen('settings');
+      setCurrentScreen('boards');
     } else if (miroError) {
       toast.error('Failed to connect Miro. Please try again.');
       window.history.replaceState({}, '', '/');
-      setCurrentScreen('settings');
+      setCurrentScreen('boards');
     }
   }, [refreshUser]);
 
