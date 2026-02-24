@@ -126,6 +126,7 @@ export interface ApiUser {
 export interface ApiTest {
     _id: string;
     name: string;
+    type?: 'solo' | 'live-session' | 'remote';
     board: { _id: string; name: string; miroId?: string; thumbnailUrl?: string } | string;
     researcher: string | { _id: string; name: string; email: string };
     status: 'draft' | 'active' | 'paused' | 'completed';

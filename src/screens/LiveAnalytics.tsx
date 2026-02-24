@@ -198,7 +198,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
   // ── Fetch heatmap data (only called explicitly, not on mount) ─
   const fetchHeatmap = useCallback(async () => {
-    if (!selectedTest) return;
+    if (!selectedTest) return false;
     setHeatmapLoading(true);
     try {
       const data = await api.get<{ heatmap?: ApiHeatmap; heatmaps?: ApiHeatmap[] }>(`/api/heatmaps/${selectedTest.id}/click`);
@@ -235,17 +235,20 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
             }))
           );
         }
+        return true;
       }
+      return false;
     } catch (err) {
       console.warn('[LiveAnalytics] No heatmap data available yet:', err);
       setHeatmapData([]);
+      return false;
     } finally {
       setHeatmapLoading(false);
     }
   }, [selectedTest]);
 
   // ── Generate heatmap ──────────────────────────────────
-  const handleGenerateHeatmap = async () => {
+  const handleGenerateHeatmap = useCallback(async () => {
     if (!selectedTest) return;
     setHeatmapLoading(true);
     try {
@@ -259,7 +262,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     } finally {
       setHeatmapLoading(false);
     }
-  };
+  }, [selectedTest]);
 
   // ── Fetch AI insights ─────────────────────────────────
   const fetchAiInsights = useCallback(async () => {
@@ -323,6 +326,20 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
+  // ── Auto-load Heatmap and Insights on Mount ────────────
+  const hasFetchedOnMount = useRef(false);
+  useEffect(() => {
+    if (!selectedTest || hasFetchedOnMount.current) return;
+    hasFetchedOnMount.current = true;
+
+    fetchAiInsights();
+    fetchHeatmap().then((hasData) => {
+      if (!hasData) {
+        handleGenerateHeatmap();
+      }
+    });
+  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap]);
+
   // ── Lazy-load tab data ────────────────────────────────
   useEffect(() => {
     if (activeTab === 'ai' && !hasFetchedAi.current && !aiLoading) {
@@ -341,7 +358,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
 
   // ── Socket.IO real-time updates ───────────────────────
   useEffect(() => {
-    if (!selectedTest) return;
+    if (!selectedTest || selectedTest.type !== 'live-session') return;
     joinTestRoom(selectedTest.id);
 
     const unsubs = [
@@ -358,9 +375,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       }),
       onParticipantJoined(() => {
         setLiveParticipants(prev => prev + 1);
+        toast.info('A participant joined the live session');
       }),
       onParticipantLeft(() => {
         setLiveParticipants(prev => Math.max(0, prev - 1));
+        toast.info('A participant left the live session');
       }),
     ];
 
@@ -543,34 +562,48 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   <>
                     {/* Quick Stats Grid */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-[#fafafa] p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <span className="text-3xl font-bold text-[#050038]">{statsInteractions}</span>
-                          <MousePointer2 size={16} className="text-[#4262ff]" />
-                        </div>
-                        <span className="text-xs text-[#050038]/60 mt-1 block">Total Interactions</span>
-                      </div>
-                      <div className="bg-[#fafafa] p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <span className="text-3xl font-bold text-[#050038]">{liveParticipants}</span>
-                          <Users size={16} className="text-[#4262ff]" />
-                        </div>
-                        <span className="text-xs text-[#050038]/60 mt-1 block">Sessions</span>
-                      </div>
-                      <div className="bg-[#fafafa] p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <span className="text-3xl font-bold text-[#050038]">{statsAvgTime}</span>
-                          <Clock size={16} className="text-[#4262ff]" />
-                        </div>
-                        <span className="text-xs text-[#050038]/60 mt-1 block">Avg. Time</span>
-                      </div>
-                      <div className="bg-[#fafafa] p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <span className="text-3xl font-bold text-[#050038]">{statsCompletion}</span>
-                          <CheckCircle size={16} className="text-[#4262ff]" />
-                        </div>
-                        <span className="text-xs text-[#050038]/60 mt-1 block">Completion Rate</span>
-                      </div>
+                      {selectedTest.type === 'live-session' ? (
+                        <>
+                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <span className="text-3xl font-bold text-[#050038]">{liveParticipants}</span>
+                              <Users size={16} className="text-[#4262ff]" />
+                            </div>
+                            <span className="text-xs text-[#050038]/60 mt-1 block">Live Participants</span>
+                          </div>
+                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <span className="text-3xl font-bold text-[#050038]">{liveClicks}</span>
+                              <MousePointer2 size={16} className="text-[#4262ff]" />
+                            </div>
+                            <span className="text-xs text-[#050038]/60 mt-1 block">Live Clicks</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <span className="text-3xl font-bold text-[#050038]">{statsSessions}</span>
+                              <Users size={16} className="text-[#4262ff]" />
+                            </div>
+                            <span className="text-xs text-[#050038]/60 mt-1 block">Total Sessions</span>
+                          </div>
+                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <span className="text-3xl font-bold text-[#050038]">{statsAvgTime}</span>
+                              <Clock size={16} className="text-[#4262ff]" />
+                            </div>
+                            <span className="text-xs text-[#050038]/60 mt-1 block">Avg. Session Time</span>
+                          </div>
+                          <div className="bg-[#fafafa] p-4 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <span className="text-3xl font-bold text-[#050038]">{statsCompletion}</span>
+                              <CheckCircle size={16} className="text-[#4262ff]" />
+                            </div>
+                            <span className="text-xs text-[#050038]/60 mt-1 block">Completion Rate</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Session Info */}

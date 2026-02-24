@@ -69,7 +69,7 @@ function mapApiTestToTest(t: ApiTest): Test {
     name: t.name,
     description: t.tasks?.[0]?.description || '',
     status: statusMap[t.status] || 'draft',
-    type: 'solo',
+    type: t.type || 'solo',
     participants: {
       current: 0,
       target: t.settings?.maxParticipants || 10,
@@ -107,11 +107,14 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addTest = useCallback(async (test: Omit<Test, 'id' | 'createdAt'>) => {
     const data = await api.post<{ test: ApiTest }>('/api/tests', {
       name: test.name,
+      type: test.type,
       tasks: test.description ? [{ description: test.description, order: 0 }] : [],
       settings: { maxParticipants: test.participants?.target || 10 },
       board: test.boardUrl,
     });
-    setTests((prev) => [mapApiTestToTest(data.test), ...prev]);
+    const newTest = mapApiTestToTest(data.test);
+    setTests((prev) => [newTest, ...prev]);
+    setSelectedTest(newTest);
   }, []);
 
   const updateTest = useCallback(async (id: string, updates: Partial<Test>) => {
