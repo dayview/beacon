@@ -24,6 +24,11 @@ const testSchema = new mongoose.Schema({
         ref: 'User',
         required: [true, 'Researcher reference is required'],
     },
+    type: {
+        type: String,
+        enum: ['solo', 'live-session', 'remote'],
+        default: 'solo',
+    },
     status: {
         type: String,
         enum: ['draft', 'active', 'paused', 'completed'],

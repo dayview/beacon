@@ -108,6 +108,7 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const data = await api.post<{ test: ApiTest }>('/api/tests', {
       name: test.name,
       type: test.type,
+      status: test.status === 'live' ? 'active' : 'draft',
       tasks: test.description ? [{ description: test.description, order: 0 }] : [],
       settings: { maxParticipants: test.participants?.target || 10 },
       board: test.boardUrl,

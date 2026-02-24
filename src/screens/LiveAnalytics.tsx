@@ -674,6 +674,31 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         ))}
                       </div>
                     )}
+
+                    {/* Simulation CTA */}
+                    {statsSessions === 0 && selectedTest.type !== 'live-session' && (
+                      <div className="bg-[#4262ff]/5 border border-[#4262ff]/20 p-6 rounded-xl text-center mt-6">
+                        <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
+                        <h3 className="text-base font-semibold text-[#050038] mb-2">No data recorded yet</h3>
+                        <p className="text-sm text-[#050038]/60 mb-4">
+                          Testing your prototype? Simulate random playthroughs to see how beacon generates heatmaps and AI insights.
+                        </p>
+                        <Button
+                          onClick={async () => {
+                            try {
+                              toast.loading('Simulating sessions...', { id: 'sim' });
+                              await api.simulateTest(selectedTest.id, 5);
+                              toast.success('Simulation complete!', { id: 'sim' });
+                              fetchAnalytics();
+                            } catch (e) {
+                              toast.error('Failed to simulate sessions', { id: 'sim' });
+                            }
+                          }}
+                        >
+                          Simulate 5 Playthroughs
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
