@@ -1,7 +1,8 @@
-import React, { useState } from "react";
-import { ChevronDown, Check, ArrowLeft, Lightbulb, FileDown, AlertCircle } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { ChevronDown, Check, ArrowLeft, Lightbulb, FileDown, AlertCircle, Loader2, TrendingUp, Info } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useTests, Test } from "../contexts/TestContext";
+import { api, ApiComparisonMetrics } from "../lib/api";
 
 interface ComparisonProps {
   onBack: () => void;
@@ -19,6 +20,41 @@ export const Comparison: React.FC<ComparisonProps> = ({ onBack }) => {
 
   const testA = tests.find(t => t.id === testAId);
   const testB = tests.find(t => t.id === testBId);
+
+  const [metricsA, setMetricsA] = useState<ApiComparisonMetrics | null>(null);
+  const [metricsB, setMetricsB] = useState<ApiComparisonMetrics | null>(null);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  const fetchMetrics = useCallback(async (
+    testId: string,
+    setter: (m: ApiComparisonMetrics | null) => void,
+    setLoading: (v: boolean) => void
+  ) => {
+    if (!testId) return;
+    setLoading(true);
+    setMetricsError(null);
+    try {
+      const data = await api.fetchComparisonMetrics(testId);
+      setter(data.metrics);
+    } catch (err: any) {
+      setMetricsError(err?.message || 'Failed to load metrics.');
+      setter(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (testAId) fetchMetrics(testAId, setMetricsA, setLoadingA);
+    else setMetricsA(null);
+  }, [testAId, fetchMetrics]);
+
+  useEffect(() => {
+    if (testBId) fetchMetrics(testBId, setMetricsB, setLoadingB);
+    else setMetricsB(null);
+  }, [testBId, fetchMetrics]);
 
   // Show empty state if not enough tests
   if (testsWithAnalytics.length < 2) {
@@ -51,64 +87,20 @@ export const Comparison: React.FC<ComparisonProps> = ({ onBack }) => {
     );
   }
 
-  // Calculate comparison metrics
-  const getComparisonData = () => {
-    if (!testA?.analytics || !testB?.analytics) return null;
+  const isDataReady = metricsA !== null && metricsB !== null
+    && !loadingA && !loadingB && testAId !== testBId;
 
-    const aClicks = testA.analytics.totalClicks;
-    const bClicks = testB.analytics.totalClicks;
-    const aCompletion = testA.analytics.completionRate;
-    const bCompletion = testB.analytics.completionRate;
-    const aDuration = testA.analytics.avgDuration;
-    const bDuration = testB.analytics.avgDuration;
-    const aSessions = testA.analytics.totalSessions;
-    const bSessions = testB.analytics.totalSessions;
-
-    // Simulate first-click percentages (in real app, this would be actual data)
-    const aFirstClick = 45 + (aClicks % 20);
-    const bFirstClick = 45 + (bClicks % 35);
-
-    // Dead zones count (simplified)
-    const aDeadZones = aClicks < 500 ? 3 : aClicks < 800 ? 2 : 1;
-    const bDeadZones = bClicks < 500 ? 3 : bClicks < 800 ? 2 : 1;
-
-    // Calculate improvement percentage
-    const completionImprovement = ((bCompletion - aCompletion) / aCompletion * 100).toFixed(0);
-    const durationImprovement = ((aDuration - bDuration) / aDuration * 100).toFixed(0);
-    const firstClickImprovement = ((bFirstClick - aFirstClick) / aFirstClick * 100).toFixed(0);
-
-    return {
-      testA: {
-        firstClick: aFirstClick,
-        deadZones: aDeadZones,
-        completion: aCompletion,
-        duration: aDuration,
-        sessions: aSessions,
-        clicks: aClicks
-      },
-      testB: {
-        firstClick: bFirstClick,
-        deadZones: bDeadZones,
-        completion: bCompletion,
-        duration: bDuration,
-        sessions: bSessions,
-        clicks: bClicks
-      },
-      improvements: {
-        completion: completionImprovement,
-        duration: durationImprovement,
-        firstClick: firstClickImprovement
-      },
-      winner: {
-        firstClick: bFirstClick > aFirstClick ? 'B' as const : 'A' as const,
-        deadZones: bDeadZones < aDeadZones ? 'B' as const : 'A' as const,
-        completion: bCompletion > aCompletion ? 'B' as const : 'A' as const,
-        duration: bDuration < aDuration ? 'B' as const : 'A' as const
-      }
-    };
-  };
-
-  const comparisonData = getComparisonData();
+  const winner = isDataReady ? {
+    firstClick: (metricsB!.firstClickAccuracy ?? 0) >=
+      (metricsA!.firstClickAccuracy ?? 0) ? 'B' as const
+      : 'A' as const,
+    deadZones: metricsB!.deadZonesCount <= metricsA!.deadZonesCount
+      ? 'B' as const : 'A' as const,
+    completion: metricsB!.completionRate >= metricsA!.completionRate
+      ? 'B' as const : 'A' as const,
+    duration: metricsB!.avgDuration <= metricsA!.avgDuration
+      ? 'B' as const : 'A' as const,
+  } : null;
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -181,8 +173,25 @@ export const Comparison: React.FC<ComparisonProps> = ({ onBack }) => {
           </div>
         )}
 
-        {/* Comparison Grid */}
-        {comparisonData && (
+        {/* Loading state */}
+        {(loadingA || loadingB) && (
+          <div className="mt-8 flex items-center justify-center py-16 rounded-xl bg-white shadow-[0px_2px_8px_rgba(5,0,56,0.08)]">
+            <Loader2 size={24} className="animate-spin text-[#4262ff]" />
+            <span className="ml-3 text-sm text-[#050038]/60">
+              Loading comparison data...
+            </span>
+          </div>
+        )}
+
+        {/* Error state */}
+        {metricsError && !loadingA && !loadingB && (
+          <div className="mt-8 rounded-xl bg-red-50 border border-red-200 p-6 text-center">
+            <p className="text-sm text-red-600">{metricsError}</p>
+          </div>
+        )}
+
+        {/* Main comparison grid — only shown when both metrics loaded */}
+        {isDataReady && (
           <>
             <div className="mt-8 overflow-hidden rounded-xl bg-white shadow-[0px_2px_8px_rgba(5,0,56,0.08)]">
               <div className="grid grid-cols-[200px_1fr_1fr] divide-x divide-[#fafafa]">
@@ -198,146 +207,227 @@ export const Comparison: React.FC<ComparisonProps> = ({ onBack }) => {
                 </div>
 
                 {/* Row 1: Total Sessions */}
-                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">Total Sessions</div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <span className="text-2xl font-bold text-[#050038]">{comparisonData.testA.sessions}</span>
+                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">
+                  Total Sessions
                 </div>
                 <div className="p-6 border-b border-[#fafafa]">
-                  <span className="text-2xl font-bold text-[#050038]">{comparisonData.testB.sessions}</span>
+                  <span className="text-2xl font-bold text-[#050038]">
+                    {metricsA!.totalSessions}
+                  </span>
+                </div>
+                <div className="p-6 border-b border-[#fafafa]">
+                  <span className="text-2xl font-bold text-[#050038]">
+                    {metricsB!.totalSessions}
+                  </span>
                 </div>
 
                 {/* Row 2: Total Clicks */}
-                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">Total Clicks</div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <span className="text-2xl font-bold text-[#050038]">{comparisonData.testA.clicks}</span>
+                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">
+                  Total Clicks
                 </div>
                 <div className="p-6 border-b border-[#fafafa]">
-                  <span className="text-2xl font-bold text-[#050038]">{comparisonData.testB.clicks}</span>
+                  <span className="text-2xl font-bold text-[#050038]">
+                    {metricsA!.totalClicks}
+                  </span>
+                </div>
+                <div className="p-6 border-b border-[#fafafa]">
+                  <span className="text-2xl font-bold text-[#050038]">
+                    {metricsB!.totalClicks}
+                  </span>
                 </div>
 
                 {/* Row 3: First-Click Accuracy */}
-                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">First-Click CTA</div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-2xl font-bold ${comparisonData.winner.firstClick === 'A' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                        {comparisonData.testA.firstClick}% <span className="text-base font-normal opacity-60">(±7%)</span>
-                      </span>
-                      {getWinnerBadge(comparisonData.winner.firstClick, false)}
-                    </div>
-                    <div className="h-2 w-full max-w-[200px] rounded-full bg-[#fafafa]">
-                      <div
-                        className={`h-full rounded-full ${comparisonData.winner.firstClick === 'A' ? 'bg-[#4262ff]' : 'bg-[#050038]/40'}`}
-                        style={{ width: `${comparisonData.testA.firstClick}%` }}
-                      ></div>
-                    </div>
-                  </div>
+                <div className="p-6 flex items-center gap-2 font-semibold text-[#050038] border-b border-[#fafafa]">
+                  First-Click CTA
+                  {(metricsA!.firstClickIsEstimated || metricsB!.firstClickIsEstimated) && (
+                    <span title="No task target elements defined — showing affordance accuracy instead" className="cursor-help">
+                      <Info size={13} className="text-[#050038]/40" />
+                    </span>
+                  )}
                 </div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-2xl font-bold ${comparisonData.winner.firstClick === 'B' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                        {comparisonData.testB.firstClick}% <span className="text-base font-normal opacity-60">(±6%)</span>
+                {[metricsA!, metricsB!].map((m, i) => (
+                  <div key={i} className="p-6 border-b border-[#fafafa]">
+                    {m.firstClickAccuracy === null ? (
+                      <span className="text-sm text-[#050038]/40">
+                        No click data
                       </span>
-                      {getWinnerBadge(comparisonData.winner.firstClick, true)}
-                    </div>
-                    <div className="h-2 w-full max-w-[200px] rounded-full bg-[#fafafa]">
-                      <div
-                        className={`h-full rounded-full ${comparisonData.winner.firstClick === 'B' ? 'bg-[#4262ff]' : 'bg-[#050038]/40'}`}
-                        style={{ width: `${comparisonData.testB.firstClick}%` }}
-                      ></div>
-                    </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-2xl font-bold ${winner!.firstClick === (i === 0 ? 'A' : 'B') ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
+                            {m.firstClickAccuracy}%
+                            {m.firstClickIsEstimated && (
+                              <span className="ml-1 text-xs font-normal text-[#050038]/40">
+                                est.
+                              </span>
+                            )}
+                          </span>
+                          {getWinnerBadge(winner!.firstClick, i === 1)}
+                        </div>
+                        <div className="h-2 w-full max-w-[200px] rounded-full bg-[#fafafa]">
+                          <div
+                            className={`h-full rounded-full ${winner!.firstClick === (i === 0 ? 'A' : 'B') ? 'bg-[#4262ff]' : 'bg-[#050038]/40'}`}
+                            style={{ width: `${m.firstClickAccuracy}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                ))}
 
                 {/* Row 4: Dead Zones */}
-                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">Dead Zones</div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.deadZones === 'A' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {comparisonData.testA.deadZones} {comparisonData.testA.deadZones === 1 ? 'zone' : 'zones'}
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.deadZones, false)}
-                  </div>
+                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">
+                  Confusion Zones
                 </div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.deadZones === 'B' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {comparisonData.testB.deadZones} {comparisonData.testB.deadZones === 1 ? 'zone' : 'zones'}
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.deadZones, true)}
+                {[metricsA!, metricsB!].map((m, i) => (
+                  <div key={i} className="p-6 border-b border-[#fafafa]">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-2xl font-bold ${winner!.deadZones === (i === 0 ? 'A' : 'B') ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
+                        {m.deadZonesCount} {m.deadZonesCount === 1 ? 'zone' : 'zones'}
+                      </span>
+                      {getWinnerBadge(winner!.deadZones, i === 1)}
+                    </div>
+                    {m.deadZoneElements && m.deadZoneElements.length > 0 && (
+                      <p className="mt-1 text-xs text-[#050038]/40 truncate max-w-[180px]">
+                        {m.deadZoneElements.join(', ')}
+                      </p>
+                    )}
                   </div>
-                </div>
+                ))}
 
                 {/* Row 5: Avg Duration */}
-                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">Avg. Duration</div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.duration === 'A' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {formatDuration(comparisonData.testA.duration)}
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.duration, false)}
-                  </div>
-                  <p className="text-xs text-[#050038]/60 mt-1">Lower is better</p>
+                <div className="p-6 flex items-center font-semibold text-[#050038] border-b border-[#fafafa]">
+                  Avg. Duration
                 </div>
-                <div className="p-6 border-b border-[#fafafa]">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.duration === 'B' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {formatDuration(comparisonData.testB.duration)}
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.duration, true)}
+                {[metricsA!, metricsB!].map((m, i) => (
+                  <div key={i} className="p-6 border-b border-[#fafafa]">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-2xl font-bold ${winner!.duration === (i === 0 ? 'A' : 'B') ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
+                        {formatDuration(m.avgDuration)}
+                      </span>
+                      {getWinnerBadge(winner!.duration, i === 1)}
+                    </div>
+                    <p className="text-xs text-[#050038]/60 mt-1">
+                      Lower is better
+                    </p>
                   </div>
-                  <p className="text-xs text-[#050038]/60 mt-1">Lower is better</p>
-                </div>
+                ))}
 
                 {/* Row 6: Completion Rate */}
-                <div className="p-6 flex items-center font-semibold text-[#050038]">Completion Rate</div>
-                <div className="p-6">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.completion === 'A' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {comparisonData.testA.completion}%
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.completion, false)}
-                  </div>
+                <div className="p-6 flex items-center font-semibold text-[#050038]">
+                  Completion Rate
                 </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${comparisonData.winner.completion === 'B' ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
-                      {comparisonData.testB.completion}%
-                    </span>
-                    {getWinnerBadge(comparisonData.winner.completion, true)}
+                {[metricsA!, metricsB!].map((m, i) => (
+                  <div key={i} className="p-6">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-2xl font-bold ${winner!.completion === (i === 0 ? 'A' : 'B') ? 'text-[#4262ff]' : 'text-[#050038]/60'}`}>
+                        {m.completionRate}%
+                      </span>
+                      {getWinnerBadge(winner!.completion, i === 1)}
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
 
             {/* Statistical Summary Card */}
-            {testAId !== testBId && parseInt(comparisonData.improvements.completion) !== 0 && (
-              <div className="mt-6 rounded-xl border border-[#4262ff]/20 bg-[#4262ff]/5 p-6">
-                <p className="text-base text-[#4262ff]">
-                  {comparisonData.winner.completion === 'B' ? testB?.name : testA?.name} shows{' '}
-                  <strong>{Math.abs(parseInt(comparisonData.improvements.completion))}% {parseInt(comparisonData.improvements.completion) > 0 ? 'improvement' : 'decrease'}</strong>{' '}
-                  in completion rate (statistically significant, p&lt;0.05)
-                </p>
-              </div>
-            )}
-
-            {/* AI Summary Card */}
-            {testAId !== testBId && (
-              <div className="mt-4 flex gap-4 rounded-xl border border-[#ffd02f] bg-[#ffd02f]/10 p-6">
-                <Lightbulb className="flex-shrink-0 text-[#050038]" />
-                <div>
-                  <p className="text-base text-[#050038] font-semibold mb-2">AI Recommendation</p>
-                  <p className="text-sm text-[#050038]/80">
-                    {comparisonData.winner.completion === 'B' ? testB?.name : testA?.name} demonstrates superior performance with{' '}
-                    {comparisonData.winner.deadZones === comparisonData.winner.completion ? 'fewer dead zones and ' : ''}
-                    higher completion rates.
-                    {parseInt(comparisonData.improvements.firstClick) > 10 && ' The improved first-click accuracy suggests better UX design.'}
-                    {' '}Consider implementing this version for production.
-                  </p>
+            {isDataReady && (() => {
+              const pA = metricsA!.completionRate / 100;
+              const pB = metricsB!.completionRate / 100;
+              const nA = metricsA!.totalSessions;
+              const nB = metricsB!.totalSessions;
+              const pPool = (pA * nA + pB * nB) / (nA + nB);
+              const se = Math.sqrt(pPool * (1 - pPool) * (1 / nA + 1 / nB));
+              const zScore = se > 0 ? Math.abs((pA - pB) / se) : 0;
+              const isSignificant = zScore > 1.96;
+              const diff = Math.abs(metricsB!.completionRate - metricsA!.completionRate);
+              if (diff === 0) return null;
+              const betterName = winner?.completion === 'B' ? testB?.name : testA?.name;
+              return (
+                <div className="mt-6 rounded-xl border border-[#4262ff]/20 bg-[#4262ff]/5 p-6">
+                  <div className="flex items-start gap-3">
+                    <TrendingUp size={18} className="mt-0.5 flex-shrink-0 text-[#4262ff]" />
+                    <p className="text-base text-[#4262ff]">
+                      <strong>{betterName}</strong> shows a{' '}
+                      <strong>{diff}% difference</strong> in completion rate
+                      {isSignificant
+                        ? ' (statistically significant at 95% confidence)'
+                        : ' (not yet statistically significant — collect more sessions)'}
+                      .
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
+
+            {/* Data-Driven Recommendation Card */}
+            {isDataReady && (() => {
+              const wins: Record<'A' | 'B', number> = { A: 0, B: 0 };
+              if (winner!.completion === 'B') wins.B++; else wins.A++;
+              if (winner!.duration === 'B') wins.B++; else wins.A++;
+              if (winner!.firstClick === 'B') wins.B++; else wins.A++;
+              if (winner!.deadZones === 'B') wins.B++; else wins.A++;
+              const overallWinner = wins.B >= wins.A ? 'B' as const : 'A' as const;
+              const winnerName = overallWinner === 'B' ? testB?.name : testA?.name;
+              const winnerMetrics = overallWinner === 'B' ? metricsB! : metricsA!;
+              const loserMetrics = overallWinner === 'B' ? metricsA! : metricsB!;
+
+              const lines: string[] = [];
+              const completionDelta = Math.abs(
+                winnerMetrics.completionRate - loserMetrics.completionRate
+              );
+              if (completionDelta > 0) {
+                lines.push(
+                  `${completionDelta}% higher task completion rate`
+                );
+              }
+              const durationDelta = Math.abs(
+                loserMetrics.avgDuration - winnerMetrics.avgDuration
+              );
+              if (durationDelta > 10) {
+                lines.push(
+                  `${Math.round(durationDelta)}s shorter average session`
+                );
+              }
+              if (winner!.deadZones === overallWinner &&
+                winnerMetrics.deadZonesCount < loserMetrics.deadZonesCount) {
+                lines.push(
+                  `${loserMetrics.deadZonesCount - winnerMetrics.deadZonesCount} fewer confusion zones`
+                );
+              }
+              if (
+                winner!.firstClick === overallWinner &&
+                winnerMetrics.firstClickAccuracy !== null &&
+                loserMetrics.firstClickAccuracy !== null
+              ) {
+                const fcDelta = Math.abs(
+                  winnerMetrics.firstClickAccuracy - loserMetrics.firstClickAccuracy
+                );
+                if (fcDelta > 0) {
+                  lines.push(`${fcDelta}% better first-click accuracy`);
+                }
+              }
+              const summary = lines.length > 0
+                ? `It achieves ${lines.join(', ')}.`
+                : 'It wins on the majority of measured metrics.';
+
+              return (
+                <div className="mt-4 flex gap-4 rounded-xl border border-[#ffd02f] bg-[#ffd02f]/10 p-6">
+                  <Lightbulb className="flex-shrink-0 text-[#050038]" />
+                  <div>
+                    <p className="text-base text-[#050038] font-semibold mb-2">
+                      Data-Driven Recommendation
+                    </p>
+                    <p className="text-sm text-[#050038]/80">
+                      Based on {metricsA!.totalSessions + metricsB!.totalSessions} total sessions,{' '}
+                      <strong>{winnerName}</strong> is the stronger design.
+                      {' '}{summary}
+                      {' '}Consider advancing this version to production.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 

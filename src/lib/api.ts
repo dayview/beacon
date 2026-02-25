@@ -117,6 +117,17 @@ export const api = {
             method: 'POST',
             body: JSON.stringify({ count }),
         }),
+
+    fetchComparisonMetrics: (testId: string) =>
+        request<{ testId: string; metrics: ApiComparisonMetrics }>(
+            `/api/analytics/${testId}/compare`
+        ),
+
+    fetchBatchSessionCounts: (testIds: string[]) =>
+        request<{ counts: Record<string, number> }>(
+            `/api/analytics/batch-sessions`,
+            { method: 'POST', body: JSON.stringify({ testIds }) }
+        ),
 };
 
 // ── API Type Definitions ────────────────────────────────────
@@ -261,5 +272,16 @@ export interface ApiPredictiveResult {
     predictions: ApiPrediction[];
     summary: string;
     heatmap: ApiHeatmap;
+}
+
+export interface ApiComparisonMetrics {
+    totalSessions: number;
+    totalClicks: number;
+    avgDuration: number;   // seconds
+    completionRate: number;   // 0–100
+    firstClickAccuracy: number | null; // 0–100, null = no data
+    firstClickIsEstimated: boolean; // true = no targetElements defined
+    deadZonesCount: number;
+    deadZoneElements: string[];
 }
 

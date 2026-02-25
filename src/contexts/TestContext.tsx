@@ -92,6 +92,28 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const data = await api.get<{ tests: ApiTest[] }>('/api/tests');
       setTests(data.tests.map(mapApiTestToTest));
+
+      // Enrich tests with real session counts for comparison filter
+      try {
+        const testIdList = data.tests.map(t => t._id);
+        if (testIdList.length > 0) {
+          const { counts } = await api.fetchBatchSessionCounts(testIdList);
+          setTests(prev =>
+            prev.map(t => ({
+              ...t,
+              analytics: {
+                totalSessions: counts[t.id] ?? 0,
+                totalClicks: 0,
+                avgDuration: 0,
+                completionRate: 0,
+                heatmapData: [],
+              },
+            }))
+          );
+        }
+      } catch {
+        // Non-fatal — comparison filter falls back to empty state
+      }
     } catch (err) {
       console.warn('[TestContext] Failed to fetch tests from API, using empty state:', err);
       // Don't toast on every load failure — user sees empty dashboard

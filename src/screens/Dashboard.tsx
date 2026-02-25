@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Plus, GitCompare, User, Play, Pause, Square, MoreHorizontal, ArrowRight, Clock, Users, Calendar, Trash2 } from "lucide-react";
+import { Plus, GitCompare, User, Play, Pause, Square, MoreHorizontal, ArrowRight, Clock, Users, Calendar, Trash2, Link } from "lucide-react";
 import { useTests, Test } from "../contexts/TestContext";
 import { EditTestModal } from "../components/EditTestModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner";
 
 interface DashboardProps {
   onNavigate: (screen: string) => void;
@@ -35,6 +36,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
 
   const handleResumeTest = (test: Test) => {
     changeTestStatus(test.id, 'live');
+  };
+
+  const handleCopyLink = (testId: string) => {
+    const link = `${window.location.origin}/participate?testId=${testId}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Participant link copied to clipboard!');
+    toast.info('This link is for participant testing, but you can use it to run a solo test yourself.', { duration: 6000 });
   };
 
   const getStatusBadge = (status: Test['status']) => {
@@ -253,6 +261,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
                           title="Delete test"
                         >
                           <Trash2 size={16} />
+                        </button>
+                      )}
+                      {(test.status === 'live' || test.status === 'paused' || test.status === 'collecting') && (
+                        <button
+                          onClick={() => handleCopyLink(test.id)}
+                          className="rounded-md px-3 py-2 text-sm font-semibold text-[#4262ff] transition-colors hover:bg-[#4262ff]/10"
+                          title="Copy participant link"
+                        >
+                          <Link size={16} />
                         </button>
                       )}
                     </div>
