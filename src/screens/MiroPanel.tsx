@@ -1,8 +1,10 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-// @ts-expect-error — @mirohq/websdk ships without full TS declarations
-import miro from "@mirohq/websdk";
+// The Miro Web SDK is injected as a global by the Miro platform at runtime.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const miro: any;
 
 const SOCKET_URL = import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
