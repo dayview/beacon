@@ -11,6 +11,7 @@ import {
     Lightbulb,
     X
 } from "lucide-react";
+import { getToken } from "../lib/api";
 
 interface BoardCanvasProps {
     boardName: string;
@@ -46,7 +47,6 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
 
     // API Initialization
     const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const getToken = () => localStorage.getItem('beacon_token');
 
     // 1. Socket Connection and Cleanup
     useEffect(() => {

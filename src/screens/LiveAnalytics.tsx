@@ -5,7 +5,6 @@ import {
   MessageSquare,
   Minus,
   Plus,
-  Search,
   Settings,
   Pause,
   Square,
@@ -490,15 +489,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
             <button onClick={handleZoomIn} className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"><Plus size={16} /></button>
           </div>
         </div>
-
-        <div>
-          <button
-            onClick={() => toast.info('Beacon search: analyzing board elements...')}
-            className="flex items-center gap-2 rounded-md bg-[#ffd02f] px-4 py-2 text-sm font-semibold text-[#050038] transition-colors hover:bg-[#ffd02f]/90"
-          >
-            <Search size={16} className="rotate-90" /> Beacon
-          </button>
-        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -582,7 +572,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                 <span className="text-sm text-[#050038]/60">{liveParticipants} participants</span>
               </div>
               <div className="flex items-center gap-4 text-[#050038]/60">
-                <button onClick={() => toast.info('Test settings — feature coming soon')} className="hover:text-[#050038]" title="Test Settings"><Settings size={20} /></button>
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting') && (
                   <button onClick={handlePauseTest} className="hover:text-[#050038]"><Pause size={20} /></button>
                 )}

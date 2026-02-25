@@ -6,6 +6,10 @@ import { authorizeTestOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 import { detectConfusionZones, getDwellTimeSummary } from '../services/confusionService.js';
 import { computeNavigationPaths, computeScrollDepth } from '../services/flowService.js';
+import {
+    computeComparisonMetrics,
+    batchSessionCounts
+} from '../services/comparisonService.js';
 
 const router = Router();
 
@@ -217,6 +221,60 @@ router.get(
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Analytics summary error:`, error);
             res.status(500).json({ error: 'Failed to generate analytics summary.' });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/compare ─────────────────────
+// All comparison metrics for a single test (real data)
+router.get(
+    '/:testId/compare',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const metrics = await computeComparisonMetrics(
+                req.params.testId
+            );
+            res.json({ testId: req.params.testId, metrics });
+        } catch (error) {
+            console.error(
+                `[${new Date().toISOString()}] Compare metrics error:`,
+                error
+            );
+            res.status(500).json({
+                error: 'Failed to compute comparison metrics.'
+            });
+        }
+    }
+);
+
+// ── POST /api/analytics/batch-sessions ─────────────────────
+// Returns { testId: sessionCount } for multiple tests at once.
+// Used by TestContext to populate test.analytics.totalSessions.
+router.post(
+    '/batch-sessions',
+    auth,
+    async (req, res) => {
+        try {
+            const { testIds } = req.body;
+            if (!Array.isArray(testIds) || testIds.length === 0) {
+                return res.json({ counts: {} });
+            }
+            // Limit to 50 to prevent abuse
+            const safeIds = testIds.slice(0, 50);
+            const counts = await batchSessionCounts(safeIds);
+            res.json({ counts });
+        } catch (error) {
+            console.error(
+                `[${new Date().toISOString()}] Batch sessions error:`,
+                error
+            );
+            res.status(500).json({
+                error: 'Failed to fetch session counts.'
+            });
         }
     }
 );
