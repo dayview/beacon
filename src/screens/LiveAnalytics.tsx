@@ -124,7 +124,7 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
     <>
       <div
         ref={zoneRef}
-        className={cn("absolute group cursor-pointer", className, style.z)}
+        className={cn("absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer", className, style.z)}
         style={customStyle}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -135,6 +135,33 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
       {typeof document !== 'undefined' && tooltipContent && createPortal(tooltipContent, document.body)}
     </>
   );
+};
+
+// ── Peak Activity Helper ────────────────────────────────────
+export const getPeakActivityCoords = (data: { x: number; y: number }[], width: number, height: number) => {
+  if (!data || data.length === 0) return { x: 50, y: 50 };
+  const gridSize = 80;
+  const grid = new Map<string, number>();
+  let peakCount = -1;
+  let peakKey = '0,0';
+
+  for (const point of data) {
+    const col = Math.floor(point.x / gridSize);
+    const row = Math.floor(point.y / gridSize);
+    const key = `${col},${row}`;
+    const count = (grid.get(key) || 0) + 1;
+    grid.set(key, count);
+    if (count > peakCount) {
+      peakCount = count;
+      peakKey = key;
+    }
+  }
+
+  const [col, row] = peakKey.split(',').map(Number);
+  return {
+    x: ((col * gridSize + gridSize / 2) / width) * 100,
+    y: ((row * gridSize + gridSize / 2) / height) * 100,
+  };
 };
 
 // ── LiveAnalytics Component ─────────────────────────────────
@@ -428,11 +455,16 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     const unsubs = [
       onParticipantEvent((data) => {
         if (data.event.type === 'click') {
+          const { x, y } = data.event.coordinates;
+          if (x < 0 || x > CANVAS_WIDTH_PX || y < 0 || y > CANVAS_HEIGHT_PX) {
+            console.warn(`[LiveAnalytics] Socket event coordinates out of bounds: (${x}, ${y}). Expected within 0-${CANVAS_WIDTH_PX}, 0-${CANVAS_HEIGHT_PX}. Skipping point.`);
+            return;
+          }
           setLiveClicks(prev => prev + 1);
           // Add to live heatmap
           setHeatmapData(prev => [...prev, {
-            x: data.event.coordinates.x,
-            y: data.event.coordinates.y,
+            x,
+            y,
             intensity: 1,
           }]);
         }
@@ -535,6 +567,23 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                     radius={40}
                     opacity={0.55}
                   />
+                  {activeTab === 'heatmap' && (
+                    <HeatmapZone
+                      intensity="high"
+                      className="pointer-events-auto"
+                      style={{
+                        top: `${getPeakActivityCoords(heatmapData, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX).y}%`,
+                        left: `${getPeakActivityCoords(heatmapData, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX).x}%`,
+                        width: '120px',
+                        height: '120px',
+                      }}
+                      insight={{
+                        title: "Peak Activity Area",
+                        cause: "Highest volume of clicks and attention in this session.",
+                        remedy: "Optimal location for displaying critical features or CTAs.",
+                      }}
+                    />
+                  )}
                 </div>
               )}
 
@@ -557,22 +606,25 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               )}
 
               {/* ── AI Insight zones (shown when AI insights available) ── */}
-              {showAiOnBoard && aiInsights.length > 0 && (
-                (() => {
-                  const coords = getPeakActivityCoords(heatmapData, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
-                  return (
-                    <HeatmapZone
-                      intensity="high"
-                      className="w-32 h-24 z-10 -translate-x-1/2 -translate-y-1/2"
-                      style={{ top: `${coords.y}%`, left: `${coords.x}%` }}
-                      insight={{
-                        title: aiInsights[0]?.insights.patterns[0] || 'High Activity Zone',
-                        cause: aiInsights[0]?.insights.summary || 'Real data analysis',
-                        remedy: aiInsights[0]?.insights.recommendations[0] || 'See full insights in AI tab',
-                      }}
-                    />
-                  );
-                })()
+              {showAiOnBoard && aiInsights.length > 0 && aiInsights[0].insights.confusionZones && (
+                aiInsights[0].insights.confusionZones.map((zone, idx) => (
+                  <HeatmapZone
+                    key={zone.id || idx}
+                    intensity={zone.severity || 'low'}
+                    className="z-10"
+                    style={{
+                      top: `${zone.boundingBox.y}px`,
+                      left: `${zone.boundingBox.x}px`,
+                      width: `${zone.boundingBox.width}px`,
+                      height: `${zone.boundingBox.height}px`,
+                    }}
+                    insight={{
+                      title: zone.label || 'Confusion Zone',
+                      cause: zone.problem || '',
+                      remedy: zone.fix || '',
+                    }}
+                  />
+                ))
               )}
             </div>
           </div>
@@ -860,13 +912,21 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                   <div key={insight._id || idx} className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm">
                     <div className="flex items-start justify-between mb-4">
                       <Lightbulb className="text-[#ffd02f] flex-shrink-0" size={24} />
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-[#050038]/40">{insight.provider}</span>
-                        {insight.cost > 0 && (
-                          <span className="text-xs text-[#050038]/40">${insight.cost.toFixed(4)}</span>
-                        )}
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-[#050038]/40">{insight.provider}</span>
+                          {insight.cost > 0 && (
+                            <span className="text-xs text-[#050038]/40">${insight.cost.toFixed(4)}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {insight.lowConfidence && (
+                      <div className="mb-4 flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800 border border-yellow-200">
+                        <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                        <p><strong>Low Confidence:</strong> The AI may have referenced elements that are not explicitly text on your board. Please verify the findings manually.</p>
+                      </div>
+                    )}
                     <p className="text-sm text-[#050038]/70 leading-relaxed mb-4">{insight.insights.summary}</p>
                     {insight.insights.patterns.length > 0 && (
                       <div className="mb-4">
@@ -1125,37 +1185,5 @@ function formatDuration(seconds: number): string {
   return `${minutes}m ${secs}s`;
 }
 
-function getPeakActivityCoords(data: { x: number; y: number; intensity: number }[], width: number, height: number): { x: number; y: number } {
-  if (!data || data.length === 0) return { x: 50, y: 50 };
 
-  const gridSize = 40;
-  const grid: Record<string, number> = {};
-
-  for (const point of data) {
-    const col = Math.floor(point.x / gridSize);
-    const row = Math.floor(point.y / gridSize);
-    const key = `${col},${row}`;
-    grid[key] = (grid[key] || 0) + point.intensity;
-  }
-
-  let maxKey = '';
-  let maxVal = -1;
-  for (const key in grid) {
-    if (grid[key] > maxVal) {
-      maxVal = grid[key];
-      maxKey = key;
-    }
-  }
-
-  if (!maxKey) return { x: 50, y: 50 };
-
-  const [col, row] = maxKey.split(',').map(Number);
-  const centerX = (col * gridSize) + (gridSize / 2);
-  const centerY = (row * gridSize) + (gridSize / 2);
-
-  const posX = Math.min(100, Math.max(0, (centerX / width) * 100));
-  const posY = Math.min(100, Math.max(0, (centerY / height) * 100));
-
-  return { x: posX, y: posY };
-}
 

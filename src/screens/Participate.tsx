@@ -11,6 +11,7 @@ export const Participate: React.FC = () => {
     const [startWidgetId, setStartWidgetId] = useState<string | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
+    const [isTracking, setIsTracking] = useState(true);
 
     const testId = new URLSearchParams(window.location.search).get('testId');
 
@@ -70,7 +71,7 @@ export const Participate: React.FC = () => {
 
     useInteractionCapture({
         containerRef,
-        enabled: !!sessionId && !isDone,
+        enabled: !!sessionId && !isDone && isTracking,
         sessionId: sessionId || '',
         moveThrottleMs: 100,
         batchSize: 20,
@@ -96,12 +97,35 @@ export const Participate: React.FC = () => {
         <div className="flex h-screen flex-col bg-[#fafafa]">
             <div className="flex h-14 items-center justify-between bg-white px-6 border-b border-[#050038]/10">
                 <span className="p-medium text-[#050038]">You are participating in a test</span>
-                {!isDone && (
-                    <Button variant="primary" onClick={handleDone}>
-                        Done
-                    </Button>
-                )}
+                <div className="flex items-center gap-4">
+                    {!isDone && (
+                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                            <button
+                                className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium ${isTracking ? 'bg-white shadow-sm text-[#050038]' : 'text-[#050038]/60 hover:text-[#050038]'}`}
+                                onClick={() => setIsTracking(true)}
+                            >
+                                Track Heatmap
+                            </button>
+                            <button
+                                className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium ${!isTracking ? 'bg-white shadow-sm text-[#050038]' : 'text-[#050038]/60 hover:text-[#050038]'}`}
+                                onClick={() => setIsTracking(false)}
+                            >
+                                Interact
+                            </button>
+                        </div>
+                    )}
+                    {!isDone && (
+                        <Button variant="primary" onClick={handleDone}>
+                            Done
+                        </Button>
+                    )}
+                </div>
             </div>
+            {isTracking && !isDone && (
+                <div className="bg-[#ffd02f] text-[#050038] text-center text-xs py-1.5 font-medium">
+                    Heatmap tracking is active. You cannot interact with the Miro board. Switch to "Interact" mode to explore the board.
+                </div>
+            )}
             <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[#eaeaea]" ref={wrapperRef}>
                 {isDone ? (
                     <div className="flex h-full w-full items-center justify-center p-large text-[#050038]">
@@ -125,9 +149,11 @@ export const Participate: React.FC = () => {
                             style={{ border: 'none' }}
                             title="Miro Board"
                         />
-                        {/* We removed the transparent overlay blocking pointer events to allow the user to interact with the board. 
-                            Note that cross-origin iframes consume pointer events, so interaction capture over the board might be limited, 
-                            but allowing user interaction (zoom/pan/click) is the priority here. */}
+                        {/* The transparent overlay is required to capture pointer events over a cross-origin iframe.
+                            We toggle it based on the isTracking state allowing users to switch between interaction and tracking. */}
+                        {isTracking && (
+                            <div className="absolute inset-0 z-10" style={{ pointerEvents: 'all', background: 'transparent' }} />
+                        )}
                     </div>
                 ) : (
                     <div className="flex h-full w-full items-center justify-center p-large text-[#050038]">
@@ -138,3 +164,4 @@ export const Participate: React.FC = () => {
         </div>
     );
 };
+

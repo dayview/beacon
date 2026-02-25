@@ -213,7 +213,18 @@ export interface ApiAIInsight {
         patterns: string[];
         recommendations: string[];
         sentiment: string;
+        confusionZones: {
+            id: string;
+            label: string;
+            problem: string;
+            fix: string;
+            severity: 'low' | 'medium' | 'high';
+            boundingBox: { x: number; y: number; width: number; height: number };
+            relatedElementIds: string[];
+            clamped?: boolean;
+        }[];
     };
+    lowConfidence?: boolean;
     cost: number;
     generatedAt: string;
 }
