@@ -252,7 +252,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       const data = await api.get<{ heatmap?: ApiHeatmap; heatmaps?: ApiHeatmap[] }>(`/api/heatmaps/${selectedTest.id}/attention`);
       const allHeatmaps = data.heatmaps || (data.heatmap ? [data.heatmap] : []);
       if (allHeatmaps.length > 0) {
-        const allPoints = allHeatmaps.flatMap(h => h.data);
+        // TODO: Future support for multiple subjects. Currently scoped to 1 subject.
+        const allPoints = allHeatmaps[0].data;
         setHeatmapData(allPoints);
         updateClickDistribution(allPoints);
         return true;
@@ -496,14 +497,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
             <span className="font-bold text-[#050038] text-xl">Beacon</span>
           </button>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center rounded-md border border-[#050038]/10 bg-white p-1">
-            <button onClick={handleZoomOut} className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"><Minus size={16} /></button>
-            <span className="min-w-[48px] text-center text-sm font-medium text-[#050038]">{zoom}%</span>
-            <button onClick={handleZoomIn} className="rounded p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"><Plus size={16} /></button>
-          </div>
-        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -513,11 +506,17 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
             <div
               ref={boardRef}
               className="relative bg-white shadow-lg rounded-sm overflow-hidden border border-[#050038]/10"
-              style={{ height: `${CANVAS_HEIGHT_PX * zoom / 100}px`, width: `${CANVAS_WIDTH_PX * zoom / 100}px`, transition: 'all 0.2s ease' }}
+              style={{
+                height: `${CANVAS_HEIGHT_PX}px`,
+                width: `${CANVAS_WIDTH_PX}px`,
+                transform: `scale(${zoom / 100})`,
+                transformOrigin: 'center center',
+                transition: 'all 0.2s ease',
+              }}
             >
               {/* Miro Live Embed */}
               <iframe
-                className="w-full h-full border-0"
+                className="w-full h-full border-0 pointer-events-none"
                 src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true`}
                 allowFullScreen
                 title="Miro Live Embed"
@@ -528,9 +527,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                 <div className="absolute inset-0 pointer-events-none z-40">
                   <HeatmapCanvas
                     data={heatmapData}
-                    width={CANVAS_WIDTH_PX * zoom / 100}
-                    height={CANVAS_HEIGHT_PX * zoom / 100}
-                    radius={Math.max(20, 40 * zoom / 100)}
+                    width={CANVAS_WIDTH_PX}
+                    height={CANVAS_HEIGHT_PX}
+                    radius={40}
                     opacity={0.55}
                   />
                 </div>
@@ -545,9 +544,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                       y: p.y,
                       intensity: p.intensity,
                     }))}
-                    width={CANVAS_WIDTH_PX * zoom / 100}
-                    height={CANVAS_HEIGHT_PX * zoom / 100}
-                    radius={Math.max(24, 48 * zoom / 100)}
+                    width={CANVAS_WIDTH_PX}
+                    height={CANVAS_HEIGHT_PX}
+                    radius={48}
                     opacity={0.5}
                     colorScheme="predictive"
                   />

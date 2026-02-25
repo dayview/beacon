@@ -315,7 +315,7 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
                         frameBorder="0"
                         allowFullScreen
                         allow="fullscreen"
-                        className="absolute inset-0 w-full h-full"
+                        className="absolute inset-0 w-full h-full pointer-events-none"
                         onLoad={() => setIframeLoaded(true)}
                     />
                 ) : (

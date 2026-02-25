@@ -51,13 +51,12 @@ function AppContent() {
     setCurrentScreen("dashboard");
   };
 
-  const handleStartTest = (testId: string) => {
+  const { addTest, selectTest } = useTests();
+
+  const handleStartTest = (_testId: string) => {
     setIsModalOpen(false);
-    selectTest(testId);
     setCurrentScreen("analytics");
   };
-
-  const { addTest, selectTest } = useTests();
 
   const handleOpenBoard = async (boardId: string, boardName: string) => {
     try {

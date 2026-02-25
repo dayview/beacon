@@ -9,6 +9,8 @@ export const Participate: React.FC = () => {
     const [isDone, setIsDone] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const [startWidgetId, setStartWidgetId] = useState<string | null>(null);
+
     const testId = new URLSearchParams(window.location.search).get('testId');
 
     useEffect(() => {
@@ -16,10 +18,13 @@ export const Participate: React.FC = () => {
 
         const socket = getSocket();
 
-        const handleCreated = ({ sessionId, boardId }: { sessionId: string, boardId?: string }) => {
+        const handleCreated = ({ sessionId, boardId, startWidgetId }: { sessionId: string, boardId?: string, startWidgetId?: string }) => {
             setSessionId(sessionId);
             if (boardId) {
                 setBoardUrl(boardId);
+            }
+            if (startWidgetId) {
+                setStartWidgetId(startWidgetId);
             }
         };
 
@@ -87,14 +92,15 @@ export const Participate: React.FC = () => {
                 ) : boardUrl ? (
                     <>
                         <iframe
-                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true`}
+                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true${startWidgetId ? `&moveToWidget=${startWidgetId}` : ''}`}
                             width="100%"
                             height="100%"
                             style={{ border: 'none' }}
                             title="Miro Board"
                         />
-                        {/* Transparent overlay to capture interactions for cross-origin iframe */}
-                        <div className="absolute inset-0 z-10" style={{ pointerEvents: 'all', background: 'transparent' }} />
+                        {/* We removed the transparent overlay blocking pointer events to allow the user to interact with the board. 
+                            Note that cross-origin iframes consume pointer events, so interaction capture over the board might be limited, 
+                            but allowing user interaction (zoom/pan/click) is the priority here. */}
                     </>
                 ) : (
                     <div className="flex h-full items-center justify-center p-large text-[#050038]">
