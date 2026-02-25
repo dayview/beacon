@@ -131,6 +131,12 @@ export const api = {
             `/api/analytics/batch-sessions`,
             { method: 'POST', body: JSON.stringify({ testIds }) }
         ),
+
+    saveAiSettings: (provider: string, apiKey: string) =>
+        request<{ success: boolean; provider: string }>(`/api/users/ai-settings`, {
+            method: 'PUT',
+            body: JSON.stringify({ provider, apiKey }),
+        }),
 };
 
 // ── API Type Definitions ────────────────────────────────────

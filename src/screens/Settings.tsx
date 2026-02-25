@@ -1,10 +1,10 @@
 import React, { useState, useRef } from "react";
-import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2, Link2 } from "lucide-react";
+import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2, Link2, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
-import { getToken } from "../lib/api";
+import { getToken, api } from "../lib/api";
 
 interface SettingsProps {
   onNavigate: (screen: string) => void;
@@ -47,9 +47,15 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
   const [theme, setTheme] = useState("light");
   const [dataRetention, setDataRetention] = useState("90");
 
+  // AI Provider state
+  const [aiProvider, setAiProvider] = useState(user?.plan?.aiProvider || 'openai');
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [isSavingAi, setIsSavingAi] = useState(false);
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'integrations', label: 'Integrations', icon: Link2 },
+    { id: 'ai', label: 'AI Settings', icon: Sparkles },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Lock },
     // { id: 'billing', label: 'Billing', icon: CreditCard },
@@ -107,6 +113,27 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
 
   const handleSavePreferences = () => {
     toast.success("Preferences saved!");
+  };
+
+  const handleSaveAiSettings = async () => {
+    if (!aiApiKey && !user?.plan?.hasAiKey) {
+      toast.error("Please enter an API key");
+      return;
+    }
+    try {
+      setIsSavingAi(true);
+      await api.saveAiSettings(aiProvider, aiApiKey);
+      toast.success("AI Settings saved successfully!");
+      setAiApiKey("");
+      if (user) {
+        user.plan.hasAiKey = true;
+        user.plan.aiProvider = aiProvider;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save AI settings");
+    } finally {
+      setIsSavingAi(false);
+    }
   };
 
   const handleProfileChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,6 +312,66 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
                       <Button variant="primary" onClick={handleSaveProfile} disabled={!profileDirty}>
                         <Save size={18} className="mr-2" />
                         {profileDirty ? "Save Changes" : "Saved"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Provider Tab */}
+                {activeTab === 'ai' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-xl font-bold text-[#050038] mb-4">AI Provider Settings</h2>
+                      <p className="text-sm text-[#050038]/60 mb-6">Configure your preferred AI model provider and API key for generating insights.</p>
+                    </div>
+
+                    <div className="rounded-xl border border-[#050038]/10 p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-bold text-[#050038]">Status</h3>
+                          <p className="text-sm text-[#050038]/60">
+                            {user?.plan?.hasAiKey ? 'API Key is configured' : 'No API Key configured'}
+                          </p>
+                        </div>
+                        {user?.plan?.hasAiKey && (
+                          <span className="flex items-center gap-1.5 text-sm font-semibold text-[#10b981] bg-[#10b981]/10 px-3 py-1.5 rounded-full">
+                            <CheckCircle2 size={16} />
+                            Ready
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-[#050038] mb-2">Provider</label>
+                      <select
+                        value={aiProvider}
+                        onChange={(e) => setAiProvider(e.target.value)}
+                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 bg-white focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
+                      >
+                        <option value="openai">OpenAI</option>
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-[#050038] mb-2">API Key</label>
+                      <input
+                        type="password"
+                        placeholder={user?.plan?.hasAiKey ? "••••••••••••••••" : "sk-..."}
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
+                      />
+                      <p className="text-xs text-[#050038]/60 mt-2">Your key is encrypted before being stored and is never shown in plaintext.</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-[#050038]/10">
+                      <Button variant="primary" onClick={handleSaveAiSettings} disabled={isSavingAi}>
+                        <Save size={18} className="mr-2" />
+                        {isSavingAi ? "Saving..." : "Save Settings"}
                       </Button>
                     </div>
                   </div>
