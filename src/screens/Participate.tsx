@@ -8,8 +8,27 @@ export const Participate: React.FC = () => {
     const [boardUrl, setBoardUrl] = useState<string | null>(null);
     const [isDone, setIsDone] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
 
     const testId = new URLSearchParams(window.location.search).get('testId');
+
+    useEffect(() => {
+        const observer = new ResizeObserver((entries) => {
+            if (entries[0]) {
+                const { width, height } = entries[0].contentRect;
+                const maxW = width - 32;
+                const maxH = height - 32;
+                const scaleX = maxW / 1200;
+                const scaleY = maxH / 800;
+                setScale(Math.max(0.1, Math.min(scaleX, scaleY)));
+            }
+        });
+        if (wrapperRef.current) {
+            observer.observe(wrapperRef.current);
+        }
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         if (!testId) return;
@@ -79,7 +98,7 @@ export const Participate: React.FC = () => {
                     </Button>
                 )}
             </div>
-            <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[#eaeaea]">
+            <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[#eaeaea]" ref={wrapperRef}>
                 {isDone ? (
                     <div className="flex h-full w-full items-center justify-center p-large text-[#050038]">
                         Thank you for participating!
@@ -87,13 +106,12 @@ export const Participate: React.FC = () => {
                 ) : boardUrl ? (
                     <div
                         ref={containerRef}
-                        className="relative bg-white shadow-xl ring-1 ring-black/5 flex-shrink-0"
+                        className="relative bg-white shadow-xl ring-1 ring-black/5 flex-shrink-0 origin-center"
                         style={{
-                            aspectRatio: '1200 / 800',
-                            width: '100%',
-                            height: '100%',
-                            maxWidth: 'calc((100vh - 56px) * 1.5)',
-                            maxHeight: 'calc(100vw / 1.5)'
+                            width: 1200,
+                            height: 800,
+                            transform: `scale(${scale})`,
+                            transition: 'transform 0.1s ease-out'
                         }}
                     >
                         <iframe
