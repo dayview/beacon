@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
         },
         aiProvider: {
             type: String,
-            enum: ['openai', 'anthropic', 'custom', null],
+            enum: ['openai', 'openrouter', 'anthropic', 'custom', null],
             default: null,
         },
         aiApiKey: {
