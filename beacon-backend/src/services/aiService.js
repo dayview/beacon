@@ -216,3 +216,120 @@ export async function analyzeSession(session, test, user, providerOverride) {
 
     return aiInsight;
 }
+
+/**
+ * Predict user behavior using the appropriate AI provider.
+ *
+ * @param {Object} test - Test document with tasks and name
+ * @param {Object} user - User document with plan info
+ * @returns {Object} predictions and summary
+ */
+export async function predictBehavior(test, user) {
+    const prompt = `You are an expert UX researcher and interaction designer.
+
+Analyze the following usability test and predict where users are
+most likely to interact with the board, based on UX heuristics:
+Gestalt principles, Fitts's Law, F-pattern/Z-pattern reading,
+visual hierarchy, contrast, and cognitive load theory.
+
+Test Details:
+- Name: ${test.name}
+- Participant Tasks: ${test.tasks.map(t => t.description).join('; ')}
+
+Board Viewport: 1200 x 800 pixels
+
+Generate 15 to 25 predicted interaction points. Distribute them 
+across the full viewport. For each point, specify:
+  - x: integer (0–1200) — horizontal coordinate
+  - y: integer (0–800) — vertical coordinate
+  - intensity: float (0.01–1.0) — prediction confidence
+  - type: "click" | "attention" | "friction"
+    click     = user will likely click here intentionally
+    attention = user eye will dwell here (high visual weight)
+    friction  = user may click here by mistake / get confused
+  - reason: string — one sentence explaining the UX heuristic
+
+Also provide a summary of the overall predicted UX behavior.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "predictions": [
+    { "x": 0, "y": 0, "intensity": 0.0, 
+      "type": "click", "reason": "..." }
+  ],
+  "summary": "..."
+}`;
+
+    // Determine provider and API key
+    let provider;
+    let apiKey;
+
+    if (user.plan.tier === 'free') {
+        // Free tier: use platform's pooled OpenAI key
+        provider = 'openai';
+        apiKey = process.env.BEACON_OPENAI_KEY;
+        if (!apiKey) {
+            const err = new Error('Add your own OpenRouter key in Settings to generate insights');
+            err.status = 422;
+            throw err;
+        }
+    } else {
+        // Pro / Enterprise: use user's own key
+        provider = user.plan.aiProvider || 'openai';
+        apiKey = user.getAiApiKey();
+        if (!apiKey) {
+            throw new Error(
+                'No AI API key configured. Add your key in Settings → AI Provider.'
+            );
+        }
+    }
+
+    // Call the appropriate provider
+    let result;
+    switch (provider) {
+        case 'openai':
+            result = await callOpenAI(apiKey, prompt);
+            break;
+        case 'anthropic':
+            result = await callAnthropic(apiKey, prompt);
+            break;
+        case 'custom':
+            result = await callCustom(apiKey, {}, prompt); // apiKey used as endpoint for custom
+            break;
+        default:
+            throw new Error(`Unsupported AI provider: ${provider}`);
+    }
+
+    // Parse the AI response
+    let parsed;
+    try {
+        const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+        parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { predictions: [], summary: result.content };
+    } catch {
+        parsed = { predictions: [], summary: result.content };
+    }
+
+    if (!Array.isArray(parsed.predictions)) {
+        parsed.predictions = [];
+    }
+
+    // Validate predictions array
+    const validPredictions = parsed.predictions
+        .filter(p => p.x !== undefined && p.y !== undefined && p.intensity !== undefined)
+        .map(p => ({
+            ...p,
+            x: Math.max(0, Math.min(1200, Math.round(p.x))),
+            y: Math.max(0, Math.min(800, Math.round(p.y))),
+            intensity: Math.max(0, Math.min(1, parseFloat(p.intensity)))
+        }));
+
+    if (validPredictions.length < 3) {
+        throw new Error('AI returned insufficient prediction data. Retry.');
+    }
+
+    return {
+        predictions: validPredictions,
+        summary: parsed.summary || 'Summary not available.',
+        cost: result.cost
+    };
+}

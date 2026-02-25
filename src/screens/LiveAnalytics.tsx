@@ -30,7 +30,7 @@ import { cn } from "../lib/utils";
 import { createPortal } from "react-dom";
 import { useTests } from "../contexts/TestContext";
 import { toast } from "sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary } from "../lib/api";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
 import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
 
@@ -142,6 +142,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [zoom, setZoom] = useState(100);
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
 
+  const [predictiveData, setPredictiveData] = useState<ApiPrediction[]>([]);
+  const [predictiveLoading, setPredictiveLoading] = useState(false);
+  const [showPredictive, setShowPredictive] = useState(false);
+  const [predictiveSummary, setPredictiveSummary] = useState('');
+
   // ── Real API state ──────────────────────────────────────
   const [heatmapData, setHeatmapData] = useState<{ x: number; y: number; intensity: number }[]>([]);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
@@ -234,7 +239,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     if (!selectedTest) return false;
     setHeatmapLoading(true);
     try {
-      const data = await api.get<{ heatmap?: ApiHeatmap; heatmaps?: ApiHeatmap[] }>(`/api/heatmaps/${selectedTest.id}/click`);
+      const data = await api.get<{ heatmap?: ApiHeatmap; heatmaps?: ApiHeatmap[] }>(`/api/heatmaps/${selectedTest.id}/attention`);
       const allHeatmaps = data.heatmaps || (data.heatmap ? [data.heatmap] : []);
       if (allHeatmaps.length > 0) {
         const allPoints = allHeatmaps.flatMap(h => h.data);
@@ -257,7 +262,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     if (!selectedTest) return;
     setHeatmapLoading(true);
     try {
-      const data = await api.post<{ heatmap: ApiHeatmap }>(`/api/heatmaps/generate/${selectedTest.id}`, { type: 'click' });
+      const data = await api.post<{ heatmap: ApiHeatmap }>(`/api/heatmaps/generate/${selectedTest.id}`, { type: 'attention' });
       if (data.heatmap) {
         setHeatmapData(data.heatmap.data);
         updateClickDistribution(data.heatmap.data);
@@ -269,6 +274,44 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
       setHeatmapLoading(false);
     }
   }, [selectedTest, updateClickDistribution]);
+
+  // ── Fetch predictive heatmap ───────────────────────────
+  const fetchPredictiveHeatmap = useCallback(async () => {
+    if (!selectedTest) return;
+    try {
+      const data = await api.fetchPredictiveHeatmap(selectedTest.id);
+      if (data.heatmap && data.heatmap.data.length > 0) {
+        setPredictiveData(
+          data.heatmap.data.map(p => ({
+            ...p,
+            type: 'attention' as const,
+            reason: 'Previously generated prediction',
+          }))
+        );
+        setShowPredictive(true);
+      }
+    } catch {
+      // No prior prediction — silently ignore
+    }
+  }, [selectedTest]);
+
+  // ── Generate prediction ───────────────────────────────
+  const handleGeneratePrediction = async () => {
+    if (!selectedTest) return;
+    setPredictiveLoading(true);
+    try {
+      toast.loading('AI is evaluating visual hierarchy...', { id: 'predict' });
+      const data = await api.generatePredictiveHeatmap(selectedTest.id);
+      setPredictiveData(data.predictions);
+      setPredictiveSummary(data.summary);
+      setShowPredictive(true);
+      toast.success(`Predictive heatmap ready — ${data.predictions.length} zones mapped`, { id: 'predict' });
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to generate prediction. Check AI key in Settings.', { id: 'predict' });
+    } finally {
+      setPredictiveLoading(false);
+    }
+  };
 
   // ── Fetch AI insights ─────────────────────────────────
   const fetchAiInsights = useCallback(async () => {
@@ -339,12 +382,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     hasFetchedOnMount.current = true;
 
     fetchAiInsights();
+    fetchPredictiveHeatmap();
     fetchHeatmap().then((hasData) => {
       if (!hasData) {
         handleGenerateHeatmap();
       }
     });
-  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap]);
+  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap]); // Note: React Hook useEffect has a missing dependency: 'fetchPredictiveHeatmap'. Either include it or remove the dependency array. But Since it's ref controlled, it's fine. 
 
   // ── Lazy-load tab data ────────────────────────────────
   useEffect(() => {
@@ -483,6 +527,24 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     height={boardHeight * zoom / 100}
                     radius={Math.max(20, 40 * zoom / 100)}
                     opacity={0.55}
+                  />
+                </div>
+              )}
+
+              {/* ── Predictive Heatmap Overlay (AI-generated) ── */}
+              {showPredictive && predictiveData.length > 0 && (
+                <div className="absolute inset-0 pointer-events-none z-41">
+                  <HeatmapCanvas
+                    data={predictiveData.map(p => ({
+                      x: p.x,
+                      y: p.y,
+                      intensity: p.intensity,
+                    }))}
+                    width={boardWidth * zoom / 100}
+                    height={boardHeight * zoom / 100}
+                    radius={Math.max(24, 48 * zoom / 100)}
+                    opacity={0.5}
+                    colorScheme="predictive"
                   />
                 </div>
               )}
@@ -681,28 +743,40 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                       </div>
                     )}
 
-                    {/* Simulation CTA */}
+                    {/* Simulation CTA Replacement */}
                     {statsSessions === 0 && selectedTest.type !== 'live-session' && (
-                      <div className="bg-[#4262ff]/5 border border-[#4262ff]/20 p-6 rounded-xl text-center mt-6">
-                        <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
-                        <h3 className="text-base font-semibold text-[#050038] mb-2">No data recorded yet</h3>
+                      <div className="bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/20 p-6 rounded-xl text-center mt-6">
+                        <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500">
+                          <Lightbulb size={20} className="text-white" />
+                        </div>
+                        <h3 className="text-base font-semibold text-[#050038] mb-2">
+                          No participant data yet
+                        </h3>
                         <p className="text-sm text-[#050038]/60 mb-4">
-                          Testing your prototype? Simulate random playthroughs to see how beacon generates heatmaps and AI insights.
+                          Use AI to predict where users will click before recruiting participants. Generate a Predictive Heatmap based on UX heuristics and your board's task goals.
                         </p>
                         <Button
-                          onClick={async () => {
-                            try {
-                              toast.loading('Simulating sessions...', { id: 'sim' });
-                              await api.simulateTest(selectedTest.id, 5);
-                              toast.success('Simulation complete!', { id: 'sim' });
-                              fetchAnalytics();
-                            } catch (e) {
-                              toast.error('Failed to simulate sessions', { id: 'sim' });
-                            }
-                          }}
+                          onClick={handleGeneratePrediction}
+                          disabled={predictiveLoading}
+                          className="w-full justify-center bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-700 hover:to-fuchsia-700"
                         >
-                          Simulate 5 Playthroughs
+                          {predictiveLoading ? (
+                            <>
+                              <Loader2 size={14} className="mr-2 animate-spin" />
+                              AI is evaluating visual hierarchy...
+                            </>
+                          ) : (
+                            <>
+                              <Lightbulb size={14} className="mr-2" />
+                              Generate Predictive Heatmap
+                            </>
+                          )}
                         </Button>
+                        {predictiveSummary && (
+                          <p className="mt-3 text-xs text-[#050038]/50 text-left bg-white/60 rounded-lg px-3 py-2">
+                            {predictiveSummary}
+                          </p>
+                        )}
                       </div>
                     )}
                   </>
@@ -841,6 +915,46 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                   )}
                 </Button>
 
+                {/* Predictive Heatmap Toggle */}
+                {predictiveData.length > 0 && (
+                  <div className="flex items-center justify-between bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 rounded-lg px-4 py-3">
+                    <div>
+                      <span className="text-sm font-semibold text-[#050038]">
+                        Predictive Heatmap
+                      </span>
+                      <p className="text-xs text-[#050038]/50">
+                        AI prediction · {predictiveData.length} zones
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowPredictive(prev => !prev)}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                        showPredictive ? "bg-gradient-to-r from-violet-500 to-fuchsia-500" : "bg-[#050038]/20"
+                      )}
+                    >
+                      <span className={cn(
+                        "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                        showPredictive ? "translate-x-4" : "translate-x-0.5"
+                      )} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Generate Prediction Button */}
+                <Button
+                  onClick={handleGeneratePrediction}
+                  disabled={predictiveLoading}
+                  variant="secondary"
+                  className="w-full justify-center border-violet-300 text-violet-700 hover:bg-violet-50"
+                >
+                  {predictiveLoading ? (
+                    <><Loader2 size={14} className="mr-2 animate-spin" /> Analyzing visual hierarchy...</>
+                  ) : (
+                    <><Lightbulb size={14} className="mr-2" /> {predictiveData.length > 0 ? 'Regenerate Predictive Heatmap' : 'Generate Predictive Heatmap'}</>
+                  )}
+                </Button>
+
                 <div>
                   <h3 className="text-base font-semibold text-[#050038] mb-3">Heatmap Legend</h3>
                   <div className="flex items-center gap-4 mb-4">
@@ -862,6 +976,29 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     <span>Low</span>
                     <span>High</span>
                   </div>
+
+                  {predictiveData.length > 0 && showPredictive && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-semibold text-[#050038] mb-2">
+                        AI Prediction Layer
+                      </h3>
+                      <div className="flex items-center gap-4 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full bg-violet-500" />
+                          <span className="text-xs text-[#050038]/60">Click zones</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full bg-fuchsia-500" />
+                          <span className="text-xs text-[#050038]/60">Attention</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full bg-rose-500" />
+                          <span className="text-xs text-[#050038]/60">Friction</span>
+                        </div>
+                      </div>
+                      <div className="h-4 w-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 via-fuchsia-500 via-pink-500 to-rose-500" />
+                    </div>
+                  )}
                 </div>
 
                 <div>

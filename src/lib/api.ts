@@ -101,6 +101,14 @@ export const api = {
     fetchAiInsights: (testId: string) =>
         request<{ insights: ApiAIInsight[] }>(`/api/ai/insights/${testId}`),
 
+    generatePredictiveHeatmap: (testId: string) =>
+        request<ApiPredictiveResult>(`/api/ai/predict/${testId}`, {
+            method: 'POST',
+        }),
+
+    fetchPredictiveHeatmap: (testId: string) =>
+        request<{ heatmap: ApiHeatmap | null }>(`/api/ai/predict/${testId}`),
+
     fetchHeatmapProps: (testId: string) =>
         request<{ heatmaps: ApiHeatmap[] }>(`/api/heatmaps/${testId}`),
 
@@ -239,5 +247,19 @@ export interface ApiTemplate {
 export interface ApiTemplateCategory {
     name: string;
     count: number;
+}
+
+export interface ApiPrediction {
+    x: number;
+    y: number;
+    intensity: number;
+    type: 'click' | 'attention' | 'friction';
+    reason: string;
+}
+
+export interface ApiPredictiveResult {
+    predictions: ApiPrediction[];
+    summary: string;
+    heatmap: ApiHeatmap;
 }
 

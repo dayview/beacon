@@ -18,6 +18,7 @@ import miroRoutes from './routes/miro.js';
 import testRoutes from './routes/tests.js';
 import sessionRoutes from './routes/sessions.js';
 import aiRoutes from './routes/ai.js';
+import predictionsRouter from './routes/predictions.js';
 import analyticsRoutes from './routes/analytics.js';
 import workspaceRoutes from './routes/workspaces.js';
 import heatmapRoutes from './routes/heatmaps.js';
@@ -36,8 +37,8 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "frame-src":   ["'self'", "https://miro.com", "https://*.miro.com"],
-            "img-src":     ["'self'", "data:", "blob:", "https://*.miro.com"],
+            "frame-src": ["'self'", "https://miro.com", "https://*.miro.com"],
+            "img-src": ["'self'", "data:", "blob:", "https://*.miro.com"],
             "connect-src": ["'self'", "wss:", "ws:", "https://*.miro.com"],
         },
     },
@@ -73,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/miro', miroRoutes);
 app.use('/api/tests', testRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/ai', predictionsRouter);
 app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/workspaces', workspaceRoutes);
