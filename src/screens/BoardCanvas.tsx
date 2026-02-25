@@ -27,7 +27,6 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
     const socketRef = useRef<Socket | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const lastMouseMoveRef = useRef<number>(0);
 
     // Heatmap State
     const [heatmapType, setHeatmapType] = useState<'click' | 'attention' | 'scroll'>('click');
@@ -121,43 +120,6 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
         };
     }, []);
 
-    // 3. Tracking Actions
-    const trackEvent = (type: 'click' | 'mousemove' | 'scroll', xPercent: number, yPercent: number) => {
-        if (!sessionIdRef.current || !socketRef.current || !isConnected) return;
-        socketRef.current.emit('session:event', {
-            sessionId: sessionIdRef.current,
-            type,
-            coordinates: { x: xPercent, y: yPercent },
-            timestamp: Date.now(),
-            element: 'iframe_overlay',
-            metadata: {}
-        });
-    };
-
-    const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-        const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
-        trackEvent('click', xPercent, yPercent);
-    };
-
-    const handleTrackMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        const now = Date.now();
-        if (now - lastMouseMoveRef.current < 100) return;
-        lastMouseMoveRef.current = now;
-
-        const rect = e.currentTarget.getBoundingClientRect();
-        const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-        const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
-        trackEvent('mousemove', xPercent, yPercent);
-    };
-
-    const handleTrackScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.currentTarget;
-        const xPercent = target.scrollWidth ? (target.scrollLeft / target.scrollWidth) * 100 : 0;
-        const yPercent = target.scrollHeight ? (target.scrollTop / target.scrollHeight) * 100 : 0;
-        trackEvent('scroll', xPercent, yPercent);
-    };
 
     // 4. Heatmap Generation
     const handleGenerateHeatmap = async () => {
@@ -365,14 +327,7 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
                     />
                 )}
 
-                {/* Transparent Event Tracking Overlay */}
-                <div
-                    className="absolute inset-0 z-10"
-                    style={{ position: 'absolute', inset: 0, zIndex: 10 }}
-                    onClick={handleTrackClick}
-                    onMouseMove={handleTrackMouseMove}
-                    onScroll={handleTrackScroll}
-                />
+
 
                 {/* Heatmap Canvas Overlay */}
                 <div

@@ -39,6 +39,7 @@ app.use(helmet({
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             "frame-src": ["'self'", "https://miro.com", "https://*.miro.com"],
+            "frame-ancestors": ["'self'", "https://miro.com", "https://*.miro.com"],
             "img-src": ["'self'", "data:", "blob:", "https://*.miro.com"],
             "connect-src": ["'self'", "wss:", "ws:", "https://*.miro.com"],
         },
