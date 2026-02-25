@@ -84,44 +84,163 @@ async function callCustom(endpoint, headers, prompt) {
     return { content, cost: 0 };
 }
 
+import mongoose from 'mongoose';
+
+// ── Helpers for Context & Hotspots ───────────────────────────
+
+async function fetchMiroBoardContext(miroId) {
+    const token = process.env.MIRO_ACCESS_TOKEN;
+    if (!token) return [];
+
+    try {
+        const res = await fetch(`https://api.miro.com/v2/boards/${miroId}/items`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const items = data.data || [];
+
+        // Extract widgets
+        const widgets = items.map(item => {
+            let content = '';
+            if (item.data?.content) {
+                // simple strip HTML tags
+                content = item.data.content.replace(/<[^>]*>?/gm, '').trim();
+            } else if (item.data?.text) {
+                content = item.data.text.replace(/<[^>]*>?/gm, '').trim();
+            } else if (item.data?.title) {
+                content = item.data.title;
+            }
+
+            return {
+                id: item.id,
+                type: item.type,
+                content: content,
+                x: item.position?.x || 0,
+                y: item.position?.y || 0,
+                width: item.geometry?.width || 0,
+                height: item.geometry?.height || 0
+            };
+        });
+
+        // Normalize to 1200x800
+        if (widgets.length === 0) return [];
+
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+
+        for (const w of widgets) {
+            const left = w.x - w.width / 2;
+            const right = w.x + w.width / 2;
+            const top = w.y - w.height / 2;
+            const bottom = w.y + w.height / 2;
+
+            if (left < minX) minX = left;
+            if (right > maxX) maxX = right;
+            if (top < minY) minY = top;
+            if (bottom > maxY) maxY = bottom;
+        }
+
+        const boardWidth = maxX - minX || 1;
+        const boardHeight = maxY - minY || 1;
+
+        // Fit into 1200x800 viewport mapping
+        const scale = Math.min(1200 / boardWidth, 800 / boardHeight);
+
+        return widgets.map(w => ({
+            id: w.id,
+            type: w.type,
+            content: w.content || `[${w.type} without text]`,
+            x: Math.round((w.x - minX) * scale),
+            y: Math.round((w.y - minY) * scale),
+            width: Math.round(w.width * scale),
+            height: Math.round(w.height * scale)
+        }));
+    } catch {
+        return [];
+    }
+}
+
+function calculateHotspots(events) {
+    const clicks = events.filter(e => e.type === 'click' && e.coordinates?.x !== undefined);
+
+    // Simple grid-based clustering (80x80 cells)
+    const gridSize = 80;
+    const grid = new Map();
+
+    for (const click of clicks) {
+        const cx = Math.floor(click.coordinates.x / gridSize);
+        const cy = Math.floor(click.coordinates.y / gridSize);
+        const key = `${cx},${cy}`;
+
+        if (!grid.has(key)) {
+            grid.set(key, { clicks: 0, sumX: 0, sumY: 0 });
+        }
+        const cell = grid.get(key);
+        cell.clicks++;
+        cell.sumX += click.coordinates.x;
+        cell.sumY += click.coordinates.y;
+    }
+
+    const clusters = Array.from(grid.values()).map(cell => ({
+        centerX: Math.round(cell.sumX / cell.clicks),
+        centerY: Math.round(cell.sumY / cell.clicks),
+        radius: Math.min(40, 10 + cell.clicks * 2),
+        intensity: cell.clicks
+    }));
+
+    clusters.sort((a, b) => b.intensity - a.intensity);
+    return clusters.slice(0, 5); // top 5
+}
+
 // ── Prompt builder ───────────────────────────────────────────
 
-function buildAnalysisPrompt(session, test) {
-    const eventSequence = session.events
-        .slice(0, 200) // Limit to 200 events to control token usage
-        .map(
-            (e) =>
-                `[${e.type}] at (${e.coordinates?.x || 0}, ${e.coordinates?.y || 0}) on "${e.element || 'unknown'}" @ ${e.timestamp}`
-        )
-        .join('\n');
+function buildAnalysisPrompt(session, test, boardContext, hotspots) {
+    const hotspotsSummary = JSON.stringify(hotspots, null, 2);
 
-    return `Analyze this usability test session:
+    const boardContextSummary = JSON.stringify(boardContext.map(w => ({
+        id: w.id,
+        type: w.type,
+        label: w.content,
+        x: w.x,
+        y: w.y,
+        width: w.width,
+        height: w.height
+    })), null, 2);
 
-Test Details:
-- Test Name: ${test.name}
-- Tasks: ${JSON.stringify(test.tasks.map((t) => t.description))}
+    return `SYSTEM:
+You are a UX analyst specializing in usability testing and interface clarity. 
+You are given: (a) a list of elements on a Miro board with their positions and labels, (b) real user click heatmap hotspots from a usability test session.
 
-Session Metrics:
-- Task Completion Rate: ${session.metrics?.taskCompletionRate || 0}%
-- Total Click Count: ${session.metrics?.clickCount || 0}
-- Time on Task: ${JSON.stringify(session.metrics?.timeOnTask || {})}
-- Path Efficiency: ${session.metrics?.pathEfficiency || 0}
+Your job is to identify specific board regions that are likely confusing to users based on heatmap clustering, element density, overlapping decision paths, or ambiguous labels — then suggest a concrete fix for each.
 
-Event Sequence (first 200):
-${eventSequence}
+RULES:
+- Only reference elements that exist in the board_context provided.
+- Each confusion zone must have a bounding box (x, y, width, height) in the 1200x800 coordinate space that corresponds to real board elements.
+- Do not fabricate element names or positions.
+- Return a valid JSON object only. No markdown, no commentary.
 
-Provide:
-1. Summary of user behavior
-2. Identified patterns and pain points
-3. UX recommendations
-4. Sentiment analysis (positive/neutral/negative)
+USER:
+Board context: ${boardContextSummary}
+Heatmap hotspots: ${hotspotsSummary}
 
-Format response as JSON:
+Return a JSON object with this exact shape:
 {
-  "summary": "...",
-  "patterns": ["...", "..."],
-  "recommendations": ["...", "..."],
-  "sentiment": "..."
+  "summary": "string",
+  "patterns": ["string"],
+  "recommendations": ["string"],
+  "sentiment": "positive" | "negative" | "neutral",
+  "confusionZones": [
+    {
+      "id": "string (uuid)",
+      "label": "string (short name of the zone, e.g. 'Dense Decision Cluster')",
+      "problem": "string (1-2 sentences describing why this area is confusing)",
+      "fix": "string (1-2 sentences with a specific actionable suggestion)",
+      "severity": "low" | "medium" | "high",
+      "boundingBox": { "x": number, "y": number, "width": number, "height": number },
+      "relatedElementIds": ["string"]
+    }
+  ]
 }`;
 }
 
@@ -137,7 +256,23 @@ Format response as JSON:
  * @returns {Object} AIInsight document
  */
 export async function analyzeSession(session, test, user, providerOverride) {
-    const prompt = buildAnalysisPrompt(session, test);
+    let boardContext = [];
+    if (test.board) {
+        let boardModel;
+        // Use populated doc or fetch it
+        if (test.board.miroId) {
+            boardModel = test.board;
+        } else {
+            // Lazy load the board model inline without importing it at top level if it's already an ObjectId
+            boardModel = await mongoose.model('Board').findById(test.board);
+        }
+        if (boardModel && boardModel.miroId) {
+            boardContext = await fetchMiroBoardContext(boardModel.miroId);
+        }
+    }
+
+    const hotspots = calculateHotspots(session.events || []);
+    const prompt = buildAnalysisPrompt(session, test, boardContext, hotspots);
 
     // Determine provider and API key
     let provider;
@@ -189,6 +324,7 @@ export async function analyzeSession(session, test, user, providerOverride) {
             patterns: [],
             recommendations: [],
             sentiment: 'neutral',
+            confusionZones: []
         };
     } catch {
         insights = {
@@ -196,7 +332,60 @@ export async function analyzeSession(session, test, user, providerOverride) {
             patterns: [],
             recommendations: [],
             sentiment: 'neutral',
+            confusionZones: []
         };
+    }
+
+    if (!insights.confusionZones || !Array.isArray(insights.confusionZones)) {
+        console.warn('AI omitted confusionZones; defaulting to empty array');
+        insights.confusionZones = [];
+    }
+
+    // Validate bounds
+    insights.confusionZones = insights.confusionZones.map(zone => {
+        if (!zone.boundingBox) return zone;
+        const bb = zone.boundingBox;
+        let clamped = false;
+
+        let x = bb.x || 0;
+        let y = bb.y || 0;
+        let width = bb.width || 0;
+        let height = bb.height || 0;
+
+        if (x < 0) { x = 0; clamped = true; }
+        if (y < 0) { y = 0; clamped = true; }
+        if (x + width > 1200) { width = 1200 - x; clamped = true; }
+        if (y + height > 800) { height = 800 - y; clamped = true; }
+
+        if (width < 0) width = 0;
+        if (height < 0) height = 0;
+
+        return {
+            ...zone,
+            boundingBox: { x, y, width, height },
+            clamped: clamped || undefined
+        };
+    });
+
+    // Validation for hallucinated elements setting low_confidence
+    let lowConfidence = false;
+    const allText = (insights.summary || '') + ' ' + (insights.patterns?.join(' ') || '') + ' ' + (insights.recommendations?.join(' ') || '');
+
+    // We check if the AI cites elements explicitly by quoting them. E.g "Sign In" button.
+    // We extract double quoted phrases and see if they exist in boardContext.
+    // (This is a simplified programmatic heuristic)
+    const quotes = allText.match(/"([^"]+)"/g);
+    if (quotes && boardContext.length > 0) {
+        for (const quoteMatch of quotes) {
+            const word = quoteMatch.replace(/"/g, '').trim().toLowerCase();
+            if (word.length > 3) {
+                const found = boardContext.some(w => w.content && w.content.toLowerCase().includes(word));
+                if (!found && !allText.toLowerCase().includes('no text')) {
+                    lowConfidence = true;
+                    break;
+                }
+            }
+        }
     }
 
     // Save to database
@@ -210,7 +399,9 @@ export async function analyzeSession(session, test, user, providerOverride) {
             patterns: insights.patterns || [],
             recommendations: insights.recommendations || [],
             sentiment: insights.sentiment || 'neutral',
+            confusionZones: insights.confusionZones || [],
         },
+        lowConfidence: lowConfidence,
         cost: result.cost,
     });
 

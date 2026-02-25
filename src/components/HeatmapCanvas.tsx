@@ -31,25 +31,6 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState({ x: 1, y: 1 });
-
-    useEffect(() => {
-        if (!containerRef.current) return;
-        const observer = new ResizeObserver((entries) => {
-            const entry = entries[0];
-            if (entry) {
-                // Determine scale by comparing the container's client size to intrinsic size (which is passed as width/height props assuming they are intrinsic out of the box... wait, the parent explicitly sets width/height from props...)
-                // Actually, if LiveAnalytics passes scaled width/height, the prop `width`/`height` are the scaled ones. 
-                // Let's use intrinsic board size (1200x800) to find the scale, or we can just derive it from the DOM element.
-                // Our data points are recorded at 1200x800 intrinsic.
-                const cw = entry.contentRect.width;
-                const ch = entry.contentRect.height;
-                setScale({ x: cw / 1200, y: ch / 800 });
-            }
-        });
-        observer.observe(containerRef.current);
-        return () => observer.disconnect();
-    }, []);
 
     const draw = useCallback(() => {
         const canvas = canvasRef.current;
@@ -68,8 +49,8 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
         const maxIntensity = Math.max(...data.map((p) => p.intensity), 1);
 
         for (const point of data) {
-            const scaledX = point.x * scale.x;
-            const scaledY = point.y * scale.y;
+            const scaledX = point.x;
+            const scaledY = point.y;
             const normalizedIntensity = point.intensity / maxIntensity;
             const r = Math.max(1, radius * (0.5 + normalizedIntensity * 0.5));
 
@@ -159,7 +140,7 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
         }
 
         ctx.putImageData(imageData, 0, 0);
-    }, [data, width, height, radius, opacity, scale, colorScheme]);
+    }, [data, width, height, radius, opacity, colorScheme]);
 
     useEffect(() => {
         draw();
@@ -174,11 +155,11 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
     }
 
     return (
-        <div ref={containerRef} className="w-full h-full relative">
+        <div ref={containerRef} className="w-full h-full relative" style={{ position: 'relative', width: '100%', height: '100%' }}>
             <canvas
                 ref={canvasRef}
-                className={`pointer-events-none absolute inset-0 ${className}`}
-                style={{ width, height }}
+                className={`pointer-events-none absolute ${className}`}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             />
         </div>
     );
