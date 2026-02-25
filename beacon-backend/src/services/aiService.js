@@ -148,7 +148,9 @@ export async function analyzeSession(session, test, user, providerOverride) {
         provider = 'openai';
         apiKey = process.env.BEACON_OPENAI_KEY;
         if (!apiKey) {
-            throw new Error('Platform AI key not configured. Contact support.');
+            const err = new Error('Add your own OpenRouter key in Settings to generate insights');
+            err.status = 422;
+            throw err;
         }
     } else {
         // Pro / Enterprise: use user's own key

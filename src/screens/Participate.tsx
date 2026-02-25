@@ -76,13 +76,17 @@ export const Participate: React.FC = () => {
                         Thank you for participating!
                     </div>
                 ) : boardUrl ? (
-                    <iframe
-                        src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true`}
-                        width="100%"
-                        height="100%"
-                        style={{ border: 'none' }}
-                        title="Miro Board"
-                    />
+                    <>
+                        <iframe
+                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true`}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 'none' }}
+                            title="Miro Board"
+                        />
+                        {/* Transparent overlay to capture interactions for cross-origin iframe */}
+                        <div className="absolute inset-0 z-10" style={{ pointerEvents: 'all', background: 'transparent' }} />
+                    </>
                 ) : (
                     <div className="flex h-full items-center justify-center p-large text-[#050038]">
                         Loading board...
