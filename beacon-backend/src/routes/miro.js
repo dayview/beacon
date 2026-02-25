@@ -75,6 +75,7 @@ router.get('/boards', auth, async (req, res) => {
                 picture: b.picture,
                 createdAt: b.createdAt,
                 modifiedAt: b.modifiedAt,
+                sharingPolicy: b.sharingPolicy?.access ?? b.sharingData?.access ?? null,
             })),
         });
     } catch (error) {

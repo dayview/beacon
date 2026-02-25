@@ -16,12 +16,13 @@ import { api } from "../lib/api";
 interface BoardCanvasProps {
     boardName: string;
     onBack: () => void;
-    boardId: string;       // Miro board ID (e.g. "uXjVI...")
-    testId: string;        // MongoDB test _id
-    thumbnailUrl?: string; // optional fallback image URL from Miro API
+    boardId: string;        // Miro board ID (e.g. "uXjVI...")
+    testId: string;         // MongoDB test _id
+    thumbnailUrl?: string;  // optional fallback image URL from Miro API
+    sharingPolicy?: string | null; // Miro board sharing access level
 }
 
-export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boardId, testId, thumbnailUrl }) => {
+export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boardId, testId, thumbnailUrl, sharingPolicy }) => {
     // Socket & Session State
     const socketRef = useRef<Socket | null>(null);
     const sessionIdRef = useRef<string | null>(null);
@@ -320,6 +321,27 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
                         <div className="flex flex-col items-center gap-3">
                             <Loader2 size={24} className="animate-spin text-[#050038]/60" />
                             <span className="text-sm font-medium text-[#050038]/60">Loading Miro Board...</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sharing policy warning — shown when board is not publicly accessible */}
+                {(!sharingPolicy || (sharingPolicy !== 'public' && sharingPolicy !== 'view')) && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/90">
+                        <div className="max-w-md text-center p-6 rounded-xl border border-amber-200 bg-amber-50">
+                            <h3 className="text-base font-bold text-amber-800 mb-2">Board Not Publicly Accessible</h3>
+                            <p className="text-sm text-amber-700 mb-4">
+                                This board's sharing is set to <strong>{sharingPolicy ?? 'restricted'}</strong>.
+                                Beacon requires the board to be visible to anyone with the link.
+                            </p>
+                            <a
+                                href={`https://miro.com/app/board/${boardId}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                            >
+                                Open in Miro to Fix →
+                            </a>
                         </div>
                     </div>
                 )}

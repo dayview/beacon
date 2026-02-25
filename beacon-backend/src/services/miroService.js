@@ -145,11 +145,17 @@ export async function syncBoard(user, miroBoard) {
         content: item.data?.content || item.data?.title || '',
     }));
 
+    const sharingPolicy =
+        miroBoard.sharingPolicy?.access ??
+        miroBoard.sharingData?.access ??
+        null;
+
     const board = await Board.findOneAndUpdate(
         { miroId: miroBoard.id },
         {
             name: miroBoard.name || 'Untitled Board',
             thumbnailUrl: miroBoard.picture?.imageURL || null,
+            sharingPolicy,
             elements,
             lastSyncedAt: new Date(),
         },

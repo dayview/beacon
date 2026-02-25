@@ -50,6 +50,7 @@ const sessionSchema = new mongoose.Schema({
     },
     startedAt: { type: Date, default: Date.now },
     completedAt: { type: Date, default: null },
+    isTestData: { type: Boolean, default: false, index: true },
 });
 
 // ── Indexes ──────────────────────────────────────────────────
