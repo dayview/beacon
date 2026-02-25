@@ -145,6 +145,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const [zoom, setZoom] = useState(100);
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
 
+  const startWidgetId = selectedTest?.startWidgetId || null;
+
   const [predictiveData, setPredictiveData] = useState<ApiPrediction[]>([]);
   const [predictiveLoading, setPredictiveLoading] = useState(false);
   const [showPredictive, setShowPredictive] = useState(false);
@@ -518,7 +520,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               {/* Miro Live Embed */}
               <iframe
                 className="w-full h-full border-0 pointer-events-none"
-                src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true`}
+                src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true${startWidgetId ? `&moveToWidget=${startWidgetId}` : ''}`}
                 allowFullScreen
                 title="Miro Live Embed"
               />

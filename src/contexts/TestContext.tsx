@@ -15,6 +15,7 @@ export interface Test {
   createdAt: string;
   thumbnail?: string;
   boardUrl?: string;
+  startWidgetId?: string;
   analytics?: TestAnalytics;
 }
 
@@ -63,6 +64,13 @@ function mapApiTestToTest(t: ApiTest): Test {
     completed: 'completed',
   };
 
+  let startWidgetId = undefined;
+  if (typeof t.board === 'object' && Array.isArray((t.board as any).elements) && (t.board as any).elements.length > 0) {
+    const elements = (t.board as any).elements;
+    const firstFrame = elements.find((e: any) => e.type === 'frame');
+    startWidgetId = firstFrame ? firstFrame.miroId : elements[0].miroId;
+  }
+
   return {
     id: t._id,
     _id: t._id,
@@ -77,6 +85,7 @@ function mapApiTestToTest(t: ApiTest): Test {
     createdAt: t.createdAt,
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
     boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
+    startWidgetId,
   };
 }
 
