@@ -271,21 +271,15 @@ Return a JSON object with this exact shape:
 // ── Provider Fallback Logic ──────────────────────────────────
 
 function resolveProviderWithFallback(user, providerOverride) {
-    if (providerOverride && user.plan?.aiKeys?.[providerOverride]) {
-        return { provider: providerOverride, apiKey: user.plan.aiKeys[providerOverride] };
+    const apiKey = user.getAiApiKey();
+    if (!apiKey) {
+        return null;
     }
-    const aiKeys = user.plan?.aiKeys || {};
-    if (aiKeys.openai) {
-        return { provider: 'openai', apiKey: aiKeys.openai };
+    if (providerOverride) {
+        return { provider: providerOverride, apiKey };
     }
-    const pref = user.plan?.aiProvider;
-    if (pref && pref !== 'openai' && pref !== 'openrouter' && aiKeys[pref]) {
-        return { provider: pref, apiKey: aiKeys[pref] };
-    }
-    if (aiKeys.openrouter) {
-        return { provider: 'openrouter', apiKey: aiKeys.openrouter };
-    }
-    return null;
+    const provider = user.plan?.aiProvider || 'openai';
+    return { provider, apiKey };
 }
 
 // ── Main analysis function ───────────────────────────────────
@@ -360,13 +354,8 @@ export async function analyzeSession(session, test, user, providerOverride) {
                 throw new Error(`Unsupported AI provider: ${provider}`);
         }
     } catch (error) {
-        if (provider !== 'openrouter' && user.plan?.aiKeys?.openrouter) {
-            console.warn(`[aiService] ${provider} failed (${error.message}), falling back to OpenRouter`);
-            provider = 'openrouter';
-            result = await callOpenRouter(user.plan.aiKeys.openrouter, prompt);
-        } else {
-            throw error;
-        }
+        console.warn(`[aiService] ${provider} failed: ${error.message}`);
+        throw error;
     }
 
     // Parse the AI response
@@ -548,12 +537,8 @@ Respond ONLY with valid JSON in this exact format:
                 throw new Error(`Unsupported AI provider: ${provider}`);
         }
     } catch (error) {
-        if (provider !== 'openrouter' && user.plan?.aiKeys?.openrouter) {
-            provider = 'openrouter';
-            result = await callOpenRouter(user.plan.aiKeys.openrouter, prompt);
-        } else {
-            throw error;
-        }
+        console.warn(`[aiService] ${provider} failed: ${error.message}`);
+        throw error;
     }
 
     // Parse the AI response
