@@ -44,6 +44,7 @@ const testSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     startedAt: { type: Date, default: null },
     endedAt: { type: Date, default: null },
+    isTestData: { type: Boolean, default: false, index: true },
 });
 
 // ── Indexes ──────────────────────────────────────────────────

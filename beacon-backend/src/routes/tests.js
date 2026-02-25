@@ -53,6 +53,7 @@ router.post('/', auth, testCreateValidation, validate, async (req, res) => {
             status: status === 'active' || status === 'live' ? 'active' : 'draft',
             tasks: tasks || [],
             settings: settings || {},
+            isTestData: req.user.role === 'admin' || req.body.isTestData === true,
         });
 
         await test.populate('board');

@@ -21,6 +21,7 @@ const aiInsightSchema = new mongoose.Schema({
     },
     cost: { type: Number, default: 0 },
     generatedAt: { type: Date, default: Date.now },
+    isTestData: { type: Boolean, default: false, index: true },
 });
 
 // ── Indexes ──────────────────────────────────────────────────

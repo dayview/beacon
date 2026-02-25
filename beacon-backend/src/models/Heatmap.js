@@ -23,6 +23,7 @@ const heatmapSchema = new mongoose.Schema({
     }],
     imageUrl: { type: String, default: null },
     generatedAt: { type: Date, default: Date.now },
+    isTestData: { type: Boolean, default: false, index: true },
 });
 
 // ── Indexes ──────────────────────────────────────────────────

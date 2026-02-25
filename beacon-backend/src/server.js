@@ -23,6 +23,7 @@ import analyticsRoutes from './routes/analytics.js';
 import workspaceRoutes from './routes/workspaces.js';
 import heatmapRoutes from './routes/heatmaps.js';
 import templateRoutes from './routes/templates.js';
+import adminRoutes from './routes/admin.js';
 
 // ── Express app ──────────────────────────────────────────────
 const app = express();
@@ -81,6 +82,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/heatmaps', heatmapRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {

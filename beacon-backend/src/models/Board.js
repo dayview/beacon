@@ -31,6 +31,7 @@ const boardSchema = new mongoose.Schema({
         ref: 'Workspace',
     },
     thumbnailUrl: { type: String, default: null },
+    sharingPolicy: { type: String, default: null },
     elements: [elementSchema],
     lastSyncedAt: { type: Date, default: null },
 });
