@@ -14,7 +14,7 @@ async function callOpenAI(apiKey, prompt) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: 'gpt-5.2-2025-12-11',
+            model: 'gpt-4.1',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
@@ -278,7 +278,8 @@ function resolveProviderWithFallback(user, providerOverride) {
     if (providerOverride) {
         return { provider: providerOverride, apiKey };
     }
-    const provider = user.plan?.aiProvider || 'openai';
+    // Force provider to openai
+    const provider = 'openai';
     return { provider, apiKey };
 }
 
