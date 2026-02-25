@@ -13,6 +13,7 @@ interface HeatmapCanvasProps {
     radius?: number;
     opacity?: number;
     className?: string;
+    colorScheme?: 'thermal' | 'predictive';
 }
 
 /**
@@ -26,6 +27,7 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
     radius = 40,
     opacity = 0.6,
     className = '',
+    colorScheme = 'thermal',
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -92,32 +94,62 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
 
             const value = alpha / 255;
 
-            // Color gradient: blue → cyan → green → yellow → red
             let r = 0, g = 0, b = 0;
-            if (value < 0.25) {
-                // Blue to Cyan
-                const t = value / 0.25;
-                r = 0;
-                g = Math.round(255 * t);
-                b = 255;
-            } else if (value < 0.5) {
-                // Cyan to Green
-                const t = (value - 0.25) / 0.25;
-                r = 0;
-                g = 255;
-                b = Math.round(255 * (1 - t));
-            } else if (value < 0.75) {
-                // Green to Yellow
-                const t = (value - 0.5) / 0.25;
-                r = Math.round(255 * t);
-                g = 255;
-                b = 0;
+
+            if (colorScheme === 'thermal') {
+                // Color gradient: blue → cyan → green → yellow → red
+                if (value < 0.25) {
+                    // Blue to Cyan
+                    const t = value / 0.25;
+                    r = 0;
+                    g = Math.round(255 * t);
+                    b = 255;
+                } else if (value < 0.5) {
+                    // Cyan to Green
+                    const t = (value - 0.25) / 0.25;
+                    r = 0;
+                    g = 255;
+                    b = Math.round(255 * (1 - t));
+                } else if (value < 0.75) {
+                    // Green to Yellow
+                    const t = (value - 0.5) / 0.25;
+                    r = Math.round(255 * t);
+                    g = 255;
+                    b = 0;
+                } else {
+                    // Yellow to Red
+                    const t = (value - 0.75) / 0.25;
+                    r = 255;
+                    g = Math.round(255 * (1 - t));
+                    b = 0;
+                }
             } else {
-                // Yellow to Red
-                const t = (value - 0.75) / 0.25;
-                r = 255;
-                g = Math.round(255 * (1 - t));
-                b = 0;
+                // PREDICTIVE: indigo → violet → fuchsia → pink → rose
+                if (value < 0.25) {
+                    // Indigo (#4f46e5) to Violet (#7c3aed)
+                    const t = value / 0.25;
+                    r = Math.round(79 + t * (124 - 79));
+                    g = Math.round(70 + t * (58 - 70));
+                    b = Math.round(229 + t * (237 - 229));
+                } else if (value < 0.5) {
+                    // Violet (#7c3aed) to Fuchsia (#a21caf)
+                    const t = (value - 0.25) / 0.25;
+                    r = Math.round(124 + t * (162 - 124));
+                    g = Math.round(58 + t * (28 - 58));
+                    b = Math.round(237 + t * (175 - 237));
+                } else if (value < 0.75) {
+                    // Fuchsia (#a21caf) to Pink (#db2777)
+                    const t = (value - 0.5) / 0.25;
+                    r = Math.round(162 + t * (219 - 162));
+                    g = Math.round(28 + t * (39 - 28));
+                    b = Math.round(175 + t * (119 - 175));
+                } else {
+                    // Pink (#db2777) to Rose (#e11d48)
+                    const t = (value - 0.75) / 0.25;
+                    r = Math.round(219 + t * (225 - 219));
+                    g = Math.round(39 + t * (29 - 39));
+                    b = Math.round(119 + t * (72 - 119));
+                }
             }
 
             pixels[i] = r;
@@ -127,7 +159,7 @@ export const HeatmapCanvas: React.FC<HeatmapCanvasProps> = ({
         }
 
         ctx.putImageData(imageData, 0, 0);
-    }, [data, width, height, radius, opacity, scale]);
+    }, [data, width, height, radius, opacity, scale, colorScheme]);
 
     useEffect(() => {
         draw();
