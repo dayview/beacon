@@ -125,7 +125,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
         <div className="mx-auto max-w-7xl">
           {/* Page Header */}
           <div>
-            <h1 className="text-[32px] font-bold leading-[40px] text-[#050038]">Beacon Analytics</h1>
+            <h1 className="text-[32px] font-bold leading-[40px] text-[#050038]">Analytics</h1>
             <p className="mt-2 text-sm text-[#050038]/60">Track prototype testing and user behavior insights</p>
           </div>
 
