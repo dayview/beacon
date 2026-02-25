@@ -14,7 +14,7 @@ async function callOpenAI(apiKey, prompt) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: 'gpt-5.2-2025-12-11',
+            model: 'gpt-4.1',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
