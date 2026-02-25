@@ -9,6 +9,7 @@ import { Boards } from "../screens/Boards";
 import { BoardCanvas } from "../screens/BoardCanvas";
 import { Settings } from "../screens/Settings";
 import { Participate } from "../screens/Participate";
+import { MiroPanel } from "../screens/MiroPanel";
 import { TestSetupModal } from "../components/TestSetupModal";
 import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
@@ -16,6 +17,11 @@ import { AuthProvider, useAuth } from "../contexts/AuthContext";
 type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate";
 
 function AppContent() {
+  // Miro Web SDK panel — must render before any auth checks
+  if (window.location.pathname === '/miro-panel') {
+    return <MiroPanel />;
+  }
+
   const { isAuthenticated, isLoading, logout, refreshUser } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>(window.location.pathname === '/participate' ? "participate" : "dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);

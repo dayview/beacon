@@ -68,6 +68,7 @@
     "vaul": "1.1.2"
   },
   "devDependencies": {
+    "@mirohq/websdk-types": "^2.17.2",
     "@tailwindcss/vite": "4.1.12",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
