@@ -25,8 +25,11 @@ router.post(
                 return res.status(404).json({ error: 'Test not found.' });
             }
 
-            // Find the latest completed session for this test
-            const session = await Session.findOne({ test: test._id })
+            // Find the latest completed or abandoned session for this test
+            const session = await Session.findOne({
+                test: test._id,
+                status: { $in: ['completed', 'abandoned'] }
+            })
                 .sort({ completedAt: -1, startedAt: -1 });
 
             if (!session) {

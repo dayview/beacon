@@ -318,11 +318,17 @@ export async function analyzeSession(session, test, user, providerOverride) {
     let apiKey;
 
     if (user.plan.tier === 'free') {
-        // Free tier: use platform's pooled OpenAI key
-        provider = 'openai';
-        apiKey = process.env.BEACON_OPENAI_KEY;
+        // Prefer the platform pooled key; fall back to the user's own saved key
+        const userOwnKey = user.getAiApiKey();
+        apiKey = process.env.BEACON_OPENAI_KEY || userOwnKey;
+        provider = process.env.BEACON_OPENAI_KEY
+            ? 'openai'
+            : (user.plan.aiProvider || 'openai');
+
         if (!apiKey) {
-            const err = new Error('Add your own OpenAI key in Settings to generate insights');
+            const err = new Error(
+                'AI API key not configured. Go to Settings \u2192 AI Provider to add your key.'
+            );
             err.status = 422;
             throw err;
         }
@@ -501,11 +507,17 @@ Respond ONLY with valid JSON in this exact format:
     let apiKey;
 
     if (user.plan.tier === 'free') {
-        // Free tier: use platform's pooled OpenAI key
-        provider = 'openai';
-        apiKey = process.env.BEACON_OPENAI_KEY;
+        // Prefer the platform pooled key; fall back to the user's own saved key
+        const userOwnKey = user.getAiApiKey();
+        apiKey = process.env.BEACON_OPENAI_KEY || userOwnKey;
+        provider = process.env.BEACON_OPENAI_KEY
+            ? 'openai'
+            : (user.plan.aiProvider || 'openai');
+
         if (!apiKey) {
-            const err = new Error('Add your own OpenAI key in Settings to generate insights');
+            const err = new Error(
+                'AI API key not configured. Go to Settings \u2192 AI Provider to add your key.'
+            );
             err.status = 422;
             throw err;
         }
