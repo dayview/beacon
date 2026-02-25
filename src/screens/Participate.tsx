@@ -14,10 +14,6 @@ export const Participate: React.FC = () => {
     useEffect(() => {
         if (!testId) return;
 
-        if (!getSocket().connected) {
-            connectSocket();
-        }
-
         const socket = getSocket();
 
         const handleCreated = ({ sessionId, boardId }: { sessionId: string, boardId?: string }) => {
@@ -27,11 +23,24 @@ export const Participate: React.FC = () => {
             }
         };
 
+        const joinSession = () => {
+            socket.emit('session:join', { testId, participantId: null, demographics: {} });
+        };
+
         socket.on('session:created', handleCreated);
-        socket.emit('session:join', { testId, participantId: null, demographics: {} });
+
+        if (socket.connected) {
+            // Already connected — emit immediately
+            joinSession();
+        } else {
+            // Wait for connection before emitting, so the event isn't lost
+            socket.once('connect', joinSession);
+            connectSocket();
+        }
 
         return () => {
             socket.off('session:created', handleCreated);
+            socket.off('connect', joinSession);
             disconnectSocket();
         };
     }, [testId]);
