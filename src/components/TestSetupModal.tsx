@@ -10,13 +10,15 @@ import { useTests } from "../contexts/TestContext";
 interface TestSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStart: () => void;
+  onStart: (testId: string) => void;
+  onNavigateSettings?: () => void;
 }
 
 export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   isOpen,
   onClose,
   onStart,
+  onNavigateSettings,
 }) => {
   const { addTest } = useTests();
   const [step, setStep] = useState(1);
@@ -51,7 +53,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
 
   const handleStart = async () => {
     try {
-      await addTest({
+      const newTest = await addTest({
         name: testName,
         description: description || `Usability test for ${testName}`,
         status: 'live',
@@ -64,7 +66,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
       });
 
       toast.success("Test started successfully!");
-      onStart();
+      onStart(newTest.id);
 
       // Reset state after closing
       setTimeout(() => {
@@ -164,9 +166,12 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                 <div className="rounded-md border border-[#ef4444]/20 bg-[#ef4444]/5 p-4 text-sm text-[#ef4444]">
                   <p className="font-semibold mb-1">Miro is not connected</p>
                   <p className="mb-3">Please connect your Miro account in Settings first to create tests.</p>
-                  <a href="/settings" className="inline-flex items-center justify-center rounded-md bg-[#ef4444] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#ef4444]/90">
+                  <button
+                    onClick={() => { onClose(); onNavigateSettings?.(); }}
+                    className="inline-flex items-center justify-center rounded-md bg-[#ef4444] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#ef4444]/90"
+                  >
                     Go to Settings
-                  </a>
+                  </button>
                 </div>
               ) : (
                 <div className="relative">

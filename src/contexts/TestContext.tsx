@@ -36,7 +36,7 @@ interface TestContextType {
   tests: Test[];
   selectedTest: Test | null;
   isLoading: boolean;
-  addTest: (test: Omit<Test, 'id' | 'createdAt'>) => Promise<void>;
+  addTest: (test: Omit<Test, 'id' | 'createdAt'>) => Promise<Test>;
   updateTest: (id: string, updates: Partial<Test>) => void;
   deleteTest: (id: string) => void;
   selectTest: (id: string) => void;
@@ -138,6 +138,7 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const newTest = mapApiTestToTest(data.test);
     setTests((prev) => [newTest, ...prev]);
     setSelectedTest(newTest);
+    return newTest;
   }, []);
 
   const updateTest = useCallback(async (id: string, updates: Partial<Test>) => {

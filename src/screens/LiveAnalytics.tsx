@@ -19,7 +19,10 @@ import {
   TrendingUp,
   Target,
   Layers,
-  Loader2
+  Loader2,
+  CheckCircle,
+  Clock,
+  Users
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { motion, AnimatePresence } from "motion/react";
@@ -29,12 +32,13 @@ import { cn } from "../lib/utils";
 import { createPortal } from "react-dom";
 import { useTests } from "../contexts/TestContext";
 import { toast } from "sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction } from "../lib/api";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
 import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
+  onNavigate?: (screen: string) => void;
 }
 
 // ── HeatmapZone (kept for visual insight tooltips) ──────────
@@ -134,7 +138,7 @@ const HeatmapZone: React.FC<HeatmapZoneProps> = ({ intensity, className, style: 
 };
 
 // ── LiveAnalytics Component ─────────────────────────────────
-export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
+export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate }) => {
   const { selectedTest, changeTestStatus } = useTests();
   const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');
   const [highlightZone, setHighlightZone] = useState(false);
@@ -161,12 +165,15 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   const [firstClickData, setFirstClickData] = useState<{ name: string; value: number; color: string }[]>([]);
   const [clickDistribution, setClickDistribution] = useState<{ element: string; clicks: number; pct: number; color: string }[]>([]);
 
+  const [sessionStats, setSessionStats] = useState<ApiSessionStats | null>(null);
+
   const boardRef = useRef<HTMLDivElement>(null);
   const hasFetchedHeatmap = useRef(false);
   const hasFetchedAi = useRef(false);
   const hasFetchedFlow = useRef(false);
-  const boardWidth = 1200;
-  const boardHeight = 800;
+  const CANVAS_WIDTH_PX = 1200;
+  const CANVAS_HEIGHT_PX = 800;
+  const COORD_MAX = 100; // coordinates are in 0–100 percent space
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 200));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 25));
@@ -176,19 +183,23 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     if (!selectedTest) return;
     setAnalyticsLoading(true);
     try {
-      const data = await api.get<ApiAnalyticsSummary>(`/api/analytics/${selectedTest.id}/summary`);
+      const [data, statsData] = await Promise.all([
+        api.get<ApiAnalyticsSummary>(`/api/analytics/${selectedTest.id}/summary`),
+        api.get<ApiSessionStats>(`/api/analytics/${selectedTest.id}/session-stats`),
+      ]);
       setAnalyticsData(data);
+      setSessionStats(statsData);
       setLiveParticipants(data.totalSessions || 0);
-      setLiveClicks(data.confusion?.totalZones || 0);
+      setLiveClicks(0); // socket events will increment from here
 
       // Derive first-click data from element analytics
       if (data.dwellTimes && data.dwellTimes.length > 0) {
-        const totalHovers = data.dwellTimes.reduce((s, d) => s + d.totalHovers, 0);
+        const totalDwell = data.dwellTimes.reduce((s, d) => s + d.totalDwellMs, 0);
         const colors = ['#ef4444', '#ffd02f', '#4262ff', '#050038'];
         setFirstClickData(
           data.dwellTimes.slice(0, 4).map((d, i) => ({
             name: d.element,
-            value: totalHovers > 0 ? Math.round((d.totalHovers / totalHovers) * 100) : 0,
+            value: totalDwell > 0 ? Math.round((d.totalDwellMs / totalDwell) * 100) : 0,
             color: colors[i] || '#050038',
           }))
         );
@@ -211,10 +222,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
         { element: 'Bottom (Footer)', color: '#050038', count: 0 },
       ];
       for (const p of allPoints) {
-        if (p.y < boardHeight / 3) {
-          if (p.x < boardWidth / 2) zones[0].count++;
+        if (p.y < COORD_MAX / 3) {
+          if (p.x < COORD_MAX / 2) zones[0].count++;
           else zones[1].count++;
-        } else if (p.y < (boardHeight * 2) / 3) {
+        } else if (p.y < (COORD_MAX * 2) / 3) {
           zones[2].count++;
         } else {
           zones[3].count++;
@@ -231,7 +242,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
     } else {
       setClickDistribution([]);
     }
-  }, [boardHeight, boardWidth]);
+  }, []);
 
   // ── Fetch heatmap data (only called explicitly, not on mount) ─
   const fetchHeatmap = useCallback(async () => {
@@ -452,9 +463,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
   }
 
   const statsInteractions = analyticsData ? (analyticsData.confusion?.totalZones || 0) + liveClicks : liveClicks;
-  const statsSessions = analyticsData?.totalSessions || 0;
-  const statsAvgTime = analyticsData?.scrollDepth ? formatDuration(Math.round(analyticsData.scrollDepth.avgMaxDepth * 60)) : '0m 0s';
-  const statsCompletion = analyticsData?.scrollDepth ? `${Math.round(analyticsData.scrollDepth.avgMaxDepth * 100)}%` : '0%';
+  const statsSessions = sessionStats?.totalSessions ?? 0;
+  const statsAvgTime = sessionStats
+    ? formatDuration(sessionStats.avgDuration)
+    : '0m 0s';
+  const statsCompletion = sessionStats
+    ? `${sessionStats.completionRate}%`
+    : '0%';
 
   const handlePauseTest = () => { changeTestStatus(selectedTest.id, 'paused'); };
   const handleStopTest = () => { changeTestStatus(selectedTest.id, 'completed'); };
@@ -478,7 +493,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="flex items-center gap-2 text-[#050038]/60 hover:text-[#050038]">
             <ArrowLeft size={20} />
-            <span className="font-bold text-[#050038] text-xl">miro</span>
+            <span className="font-bold text-[#050038] text-xl">Beacon</span>
           </button>
         </div>
 
@@ -498,7 +513,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
             <div
               ref={boardRef}
               className="relative bg-white shadow-lg rounded-sm overflow-hidden border border-[#050038]/10"
-              style={{ height: `${boardHeight * zoom / 100}px`, width: `${boardWidth * zoom / 100}px`, transition: 'all 0.2s ease' }}
+              style={{ height: `${CANVAS_HEIGHT_PX * zoom / 100}px`, width: `${CANVAS_WIDTH_PX * zoom / 100}px`, transition: 'all 0.2s ease' }}
             >
               {/* Miro Live Embed */}
               <iframe
@@ -513,8 +528,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                 <div className="absolute inset-0 pointer-events-none z-40">
                   <HeatmapCanvas
                     data={heatmapData}
-                    width={boardWidth * zoom / 100}
-                    height={boardHeight * zoom / 100}
+                    width={CANVAS_WIDTH_PX * zoom / 100}
+                    height={CANVAS_HEIGHT_PX * zoom / 100}
                     radius={Math.max(20, 40 * zoom / 100)}
                     opacity={0.55}
                   />
@@ -530,8 +545,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                       y: p.y,
                       intensity: p.intensity,
                     }))}
-                    width={boardWidth * zoom / 100}
-                    height={boardHeight * zoom / 100}
+                    width={CANVAS_WIDTH_PX * zoom / 100}
+                    height={CANVAS_HEIGHT_PX * zoom / 100}
                     radius={Math.max(24, 48 * zoom / 100)}
                     opacity={0.5}
                     colorScheme="predictive"
@@ -542,7 +557,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
               {/* ── AI Insight zones (shown when AI insights available) ── */}
               {showAiOnBoard && aiInsights.length > 0 && (
                 (() => {
-                  const coords = getPeakActivityCoords(heatmapData, boardWidth, boardHeight);
+                  const coords = getPeakActivityCoords(heatmapData, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
                   return (
                     <HeatmapZone
                       intensity="high"
@@ -719,8 +734,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                         </div>
                         {analyticsData.confusion.zones.map((zone, i) => (
                           <div key={i} className="bg-[#ffd02f]/10 border border-[#ffd02f] p-4 rounded-lg mb-2">
-                            <p className="font-medium text-[#050038]">{zone.element}: {zone.description}</p>
-                            <p className="text-xs text-[#050038]/80 mt-1">Confusion score: {zone.score ? zone.score.toFixed(2) : '0.00'}</p>
+                            <p className="font-medium text-[#050038]">{zone.element}: {zone.details}</p>
+                            <p className="text-xs text-[#050038]/80 mt-1">Severity: {zone.severity?.toFixed(2) ?? '0.00'}</p>
                             <button
                               onClick={() => setHighlightZone(!highlightZone)}
                               className="mt-3 text-sm font-semibold text-[#050038] underline decoration-[#ffd02f] hover:text-[#050038]/80"
@@ -812,7 +827,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
                     <p className="text-sm text-red-600 mb-4">{aiError}</p>
                     {aiError?.includes('Settings') ? (
-                      <Button onClick={() => window.location.href = '/settings'} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                      <Button onClick={() => {
+                        if (onNavigate) {
+                          onNavigate('settings');
+                        } else {
+                          window.location.href = '/settings';
+                        }
+                      }} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
                         <Settings size={14} className="mr-2" /> Go to Settings
                       </Button>
                     ) : (
@@ -1136,21 +1157,3 @@ function getPeakActivityCoords(data: { x: number; y: number; intensity: number }
   return { x: posX, y: posY };
 }
 
-// ── Icon components (lucide-react doesn't export some) ─────
-const CheckCircle = ({ size, className }: { size: number, className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-  </svg>
-);
-
-const Clock = ({ size, className }: { size: number, className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-
-const Users = ({ size, className }: { size: number, className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);

@@ -25,6 +25,7 @@ async function request<T>(
     url: string,
     options: RequestInit = {}
 ): Promise<T> {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     const token = getToken();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -35,7 +36,7 @@ async function request<T>(
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(fullUrl, {
         ...options,
         headers,
     });
@@ -219,10 +220,23 @@ export interface ApiAnalyticsSummary {
     testId: string;
     totalSessions: number;
     confusion: {
-        zones: { element: string; score: number; description: string }[];
+        zones: {
+            element: string;
+            type: 'dwell' | 'rage_click' | 'backtrack';
+            severity: number;
+            details: string;
+            coordinates: { x: number; y: number };
+            affectedSessions: number;
+            avgDwellTimeMs?: number;
+        }[];
         totalZones: number;
     };
-    dwellTimes: { element: string; avgDwell: number; totalHovers: number }[];
+    dwellTimes: {
+        element: string;
+        totalDwellMs: number;
+        avgDwellMs: number;
+        sessionCount: number;
+    }[];
     flow: {
         topPaths: { path: string[]; count: number; percentage: number }[];
         dropoffPoints: { element: string; dropoffRate: number }[];
@@ -232,6 +246,13 @@ export interface ApiAnalyticsSummary {
         dropoffPoint: number;
         percentiles: Record<string, number>;
     };
+}
+
+export interface ApiSessionStats {
+    testId: string;
+    totalSessions: number;
+    completionRate: number;
+    avgDuration: number;
 }
 
 export interface ApiMiroBoard {

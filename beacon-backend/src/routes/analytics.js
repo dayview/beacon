@@ -225,6 +225,45 @@ router.get(
     }
 );
 
+// ── GET /api/analytics/:testId/session-stats ─────────────────
+// Real session-level statistics (avg duration, completion rate)
+router.get(
+    '/:testId/session-stats',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const testId = req.params.testId;
+            const sessions = await Session.find({ test: testId })
+                .select('status startedAt completedAt')
+                .lean();
+
+            const totalSessions = sessions.length;
+            const completedSessions = sessions.filter(s => s.status === 'completed');
+            const completionRate = totalSessions > 0
+                ? Math.round((completedSessions.length / totalSessions) * 100)
+                : 0;
+
+            const timedSessions = completedSessions.filter(
+                s => s.completedAt && s.startedAt
+            );
+            const avgDurationMs = timedSessions.length > 0
+                ? timedSessions.reduce((sum, s) =>
+                    sum + (new Date(s.completedAt) - new Date(s.startedAt)), 0
+                ) / timedSessions.length
+                : 0;
+            const avgDuration = Math.round(avgDurationMs / 1000); // seconds
+
+            res.json({ testId, totalSessions, completionRate, avgDuration });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Session stats error:`, error);
+            res.status(500).json({ error: 'Failed to compute session stats.' });
+        }
+    }
+);
+
 // ── GET /api/analytics/:testId/compare ─────────────────────
 // All comparison metrics for a single test (real data)
 router.get(
