@@ -278,7 +278,8 @@ function resolveProviderWithFallback(user, providerOverride) {
     if (providerOverride) {
         return { provider: providerOverride, apiKey };
     }
-    const provider = user.plan?.aiProvider || 'openai';
+    // Force provider to openai
+    const provider = 'openai';
     return { provider, apiKey };
 }
 
