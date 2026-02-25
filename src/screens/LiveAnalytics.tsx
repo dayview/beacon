@@ -221,7 +221,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       setAnalyticsData(data);
       setSessionStats(statsData);
       setLiveParticipants(data.totalSessions || 0);
-      setLiveClicks(0); // socket events will increment from here
+      // Removed setLiveClicks(0) to prevent mid-session resets
 
       // Derive first-click data from element analytics
       if (data.dwellTimes && data.dwellTimes.length > 0) {
@@ -377,6 +377,14 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   // ── Generate new AI insights ──────────────────────────
   const handleGenerateInsights = async () => {
     if (!selectedTest) return;
+
+    // Pre-flight check
+    if (sessionStats?.totalSessions === 0) {
+      toast.error('No session data yet. Run a test with participants first.');
+      setAiError('No session data available for analysis.');
+      return;
+    }
+
     setAiLoading(true);
     setAiError(null);
     try {
@@ -387,9 +395,14 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       }
     } catch (err: any) {
       const message = err?.message || 'Failed to generate insights';
-      const errorMsg = (message.includes('API key') || message.includes('not configured'))
-        ? 'AI API key not configured. Go to Settings → AI Provider to add your API key.'
-        : message;
+
+      let errorMsg = message;
+      if (err?.status === 404 || message.toLowerCase().includes('no sessions')) {
+        errorMsg = 'No session data found to analyze.';
+      } else if (message.includes('API key') || message.includes('not configured')) {
+        errorMsg = 'AI API key not configured. Go to Settings → AI Provider to add your API key.';
+      }
+
       setAiError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -459,6 +472,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
           const { x, y } = data.event.coordinates;
           if (x < 0 || x > CANVAS_WIDTH_PX || y < 0 || y > CANVAS_HEIGHT_PX) {
             console.warn(`[LiveAnalytics] Socket event coordinates out of bounds: (${x}, ${y}). Expected within 0-${CANVAS_WIDTH_PX}, 0-${CANVAS_HEIGHT_PX}. Skipping point.`);
+            if (import.meta.env.DEV) {
+              toast.warning(`Out of bounds click dropped: x=${Math.round(x)}, y=${Math.round(y)}`);
+            }
             return;
           }
           setLiveClicks(prev => prev + 1);
@@ -481,7 +497,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     ];
 
     return () => { unsubs.forEach(fn => fn()); };
-  }, [selectedTest]);
+  }, [selectedTest?.id, selectedTest?.type]);
 
   // If no test is selected, show error state
   if (!selectedTest) {

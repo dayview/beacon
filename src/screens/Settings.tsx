@@ -12,7 +12,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -125,10 +125,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
       await api.saveAiSettings(aiProvider, aiApiKey);
       toast.success("AI Settings saved successfully!");
       setAiApiKey("");
-      if (user) {
-        user.plan.hasAiKey = true;
-        user.plan.aiProvider = aiProvider;
-      }
+      await refreshUser();
     } catch (err: any) {
       toast.error(err.message || "Failed to save AI settings");
     } finally {
