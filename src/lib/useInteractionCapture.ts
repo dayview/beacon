@@ -92,8 +92,8 @@ export function useInteractionCapture({
             addEvent({
                 type: 'click',
                 coordinates: {
-                    x: Math.round(e.clientX - rect.left),
-                    y: Math.round(e.clientY - rect.top),
+                    x: Math.round(((e.clientX - rect.left) / rect.width) * 1200),
+                    y: Math.round(((e.clientY - rect.top) / rect.height) * 800),
                 },
                 timestamp: new Date(),
                 element: getElementId(e.target),
@@ -109,8 +109,8 @@ export function useInteractionCapture({
             addEvent({
                 type: 'hover',
                 coordinates: {
-                    x: Math.round(e.clientX - rect.left),
-                    y: Math.round(e.clientY - rect.top),
+                    x: Math.round(((e.clientX - rect.left) / rect.width) * 1200),
+                    y: Math.round(((e.clientY - rect.top) / rect.height) * 800),
                 },
                 timestamp: new Date(),
                 element: getElementId(e.target),
