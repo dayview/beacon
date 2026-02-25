@@ -51,7 +51,7 @@ export function initSocketHandlers(io) {
                 const { testId, participantId, demographics } = data;
 
                 // Validate the test exists and is active
-                const test = await Test.findById(testId);
+                const test = await Test.findById(testId).populate('board');
                 if (!test || test.status !== 'active') {
                     socket.emit(events.ERROR, {
                         message: 'Test not found or not active.',
