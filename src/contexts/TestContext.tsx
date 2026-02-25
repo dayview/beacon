@@ -150,7 +150,21 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         patchBody.status = reverseMap[updates.status] || updates.status;
       }
       const data = await api.patch<{ test: ApiTest }>(`/api/tests/${id}`, patchBody);
-      setTests((prev) => prev.map((t) => (t.id === id ? mapApiTestToTest(data.test) : t)));
+      const newMappedTest = mapApiTestToTest(data.test);
+
+      setTests((prev) => prev.map((t) => {
+        if (t.id === id) {
+          return { ...newMappedTest, analytics: t.analytics };
+        }
+        return t;
+      }));
+
+      setSelectedTest((prev) => {
+        if (prev?.id === id) {
+          return { ...newMappedTest, analytics: prev.analytics };
+        }
+        return prev;
+      });
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.message);
       else toast.error('Failed to update test');

@@ -77,7 +77,7 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
       {/* Header */}
       <header className="flex h-16 items-center justify-between bg-white px-8 shadow-sm border-b border-[#050038]/10">
         <div className="flex items-center gap-8">
-          <span className="text-2xl font-bold tracking-tight text-[#050038]">miro</span>
+          <span className="text-2xl font-bold tracking-tight text-[#050038]">Beacon</span>
           <nav className="flex gap-8">
             <button className="cursor-pointer text-sm font-semibold text-[#4262ff]">Boards</button>
             {/* <button onClick={() => onNavigate('templates')} className="cursor-pointer text-sm font-semibold text-[#050038]/60 hover:text-[#050038]">Templates</button> */}
