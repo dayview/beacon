@@ -74,8 +74,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/miro', miroRoutes);
 app.use('/api/tests', testRoutes);
 app.use('/api/sessions', sessionRoutes);
-app.use('/api/ai', predictionsRouter);
-app.use('/api/ai', aiRoutes);
+// ── AI routes (split across two routers — no overlapping paths) ─
+app.use('/api/ai', predictionsRouter);   // handles: POST|GET /predict/:testId
+app.use('/api/ai', aiRoutes);            // handles: POST /analyze/:testId, POST /analyze/session/:sessionId, GET /insights/:testId
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/heatmaps', heatmapRoutes);

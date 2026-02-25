@@ -7,13 +7,11 @@ import { LiveAnalytics } from "../screens/LiveAnalytics";
 import { Comparison } from "../screens/Comparison";
 import { Boards } from "../screens/Boards";
 import { BoardCanvas } from "../screens/BoardCanvas";
-import { Templates } from "../screens/Templates";
 import { Settings } from "../screens/Settings";
 import { Participate } from "../screens/Participate";
 import { TestSetupModal } from "../components/TestSetupModal";
 import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
-import { api, ApiTest } from "../lib/api";
 
 type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate";
 
@@ -47,8 +45,9 @@ function AppContent() {
     setCurrentScreen("dashboard");
   };
 
-  const handleStartTest = () => {
+  const handleStartTest = (testId: string) => {
     setIsModalOpen(false);
+    selectTest(testId);
     setCurrentScreen("analytics");
   };
 
@@ -56,45 +55,22 @@ function AppContent() {
 
   const handleOpenBoard = async (boardId: string, boardName: string) => {
     try {
-      // 1. Instantly create a test for this board in the background
-      const data = await api.post<{ test: ApiTest }>('/api/tests', {
-        name: `${boardName} Analysis`,
-        board: boardId,
-        settings: { maxParticipants: 20 },
-      });
-
-      // 2. Add it to context and select it
-      // Using an internal shape to match context's Test
-      const newTest = {
-        name: data.test.name,
-        description: data.test.tasks?.[0]?.description || '',
-        status: 'live' as const,
-        type: 'live-session' as const,
-        participants: { current: 0, target: 20 },
-        boardUrl: boardId
-      };
-
-      await addTest({
+      const newTest = await addTest({
         name: `${boardName} Analysis`,
         description: '',
         status: 'live',
         type: 'live-session',
         participants: { current: 0, target: 20 },
-        boardUrl: boardId
+        boardUrl: boardId,
       });
 
       setActiveBoardId(boardId);
       setActiveBoardName(boardName);
-      setActiveTestId(data.test._id);
-
-      // Wait a moment for test context to sync, then push to board-canvas
-      setTimeout(() => {
-        selectTest(data.test._id);
-        setCurrentScreen("board-canvas");
-      }, 500);
-
+      setActiveTestId(newTest.id);
+      selectTest(newTest.id);
+      setCurrentScreen('board-canvas');
     } catch (err) {
-      toast.error("Failed to initialize board analytics. Please use the 'New Test' button.");
+      toast.error('Failed to initialize board analytics.');
       console.error(err);
     }
   };
@@ -162,7 +138,10 @@ function AppContent() {
         )}
 
         {currentScreen === "analytics" && (
-          <LiveAnalytics onBack={() => setCurrentScreen("dashboard")} />
+          <LiveAnalytics
+            onBack={() => setCurrentScreen("dashboard")}
+            onNavigate={handleNavigate}
+          />
         )}
 
         {currentScreen === "comparison" && (
@@ -177,6 +156,10 @@ function AppContent() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           onStart={handleStartTest}
+          onNavigateSettings={() => {
+            setIsModalOpen(false);
+            setCurrentScreen('settings');
+          }}
         />
       </div>
       <Toaster position="top-center" richColors />

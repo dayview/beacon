@@ -11,7 +11,7 @@ import {
     Lightbulb,
     X
 } from "lucide-react";
-import { getToken } from "../lib/api";
+import { api } from "../lib/api";
 
 interface BoardCanvasProps {
     boardName: string;
@@ -45,18 +45,20 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
     // Iframe state
     const [iframeLoaded, setIframeLoaded] = useState(false);
 
-    // API Initialization
-    const VITE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    // Socket URL
+    const SOCKET_URL = import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+        : 'http://localhost:5000';
 
     // 1. Socket Connection and Cleanup
     useEffect(() => {
-        const token = getToken();
+        const token = localStorage.getItem('beacon-token');
         if (!token) {
             toast.error("No authentication token found.");
             return;
         }
 
-        const socket = io(VITE_API_URL, {
+        const socket = io(SOCKET_URL, {
             auth: { token }
         });
 
@@ -86,7 +88,7 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
             }
             socket.disconnect();
         };
-    }, [testId, VITE_API_URL]);
+    }, [testId, SOCKET_URL]);
 
     // 2. Heatmap Initialization and Resize Observer
     useEffect(() => {
@@ -160,34 +162,15 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
     const handleGenerateHeatmap = async () => {
         try {
             setIsGeneratingHeatmap(true);
-            const token = getToken();
 
-            const generateRes = await fetch(`${VITE_API_URL}/api/heatmaps/generate/${testId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ type: heatmapType })
-            });
+            await api.post<{ heatmap: { points: any[] } }>(
+                `/api/heatmaps/generate/${testId}`,
+                { type: heatmapType }
+            );
 
-            if (!generateRes.ok) {
-                const errData = await generateRes.json().catch(() => ({}));
-                throw new Error(errData.message || "Failed to generate heatmap");
-            }
-
-            const getRes = await fetch(`${VITE_API_URL}/api/heatmaps/${testId}/${heatmapType}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!getRes.ok) {
-                const errData = await getRes.json().catch(() => ({}));
-                throw new Error(errData.message || "Failed to fetch heatmap data");
-            }
-
-            const data = await getRes.json();
+            const data = await api.get<{ heatmap: { points: any[] } }>(
+                `/api/heatmaps/${testId}/${heatmapType}`
+            );
 
             if (data?.heatmap?.points) {
                 setHeatmapData(data.heatmap.points);
@@ -238,22 +221,11 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
             setIsRunningAI(true);
             setAiError(null);
             setShowAIPanel(true);
-            const token = getToken();
 
-            const res = await fetch(`${VITE_API_URL}/api/ai/analyze/${testId}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.message || "Failed to analyze data");
-            }
-
-            const data = await res.json();
-            setAiInsights(data.insight?.insights || data.insights);
+            const data = await api.post<{ insight: { insights: any } }>(
+                `/api/ai/analyze/${testId}`
+            );
+            setAiInsights(data.insight?.insights || null);
         } catch (error: any) {
             setAiError(`AI analysis failed: ${error.message}`);
         } finally {
@@ -278,7 +250,7 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
                         className="flex items-center gap-2 text-[#050038]/60 hover:text-[#050038] transition-colors"
                     >
                         <ArrowLeft size={20} />
-                        <span className="font-bold text-[#050038] text-xl">miro</span>
+                        <span className="font-bold text-[#050038] text-xl">Beacon</span>
                     </button>
                     <div className="h-6 w-px bg-[#050038]/10" />
                     <span className="text-sm font-medium text-[#050038]">{boardName}</span>
@@ -364,7 +336,7 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({ boardName, onBack, boa
                     />
                 ) : (
                     <img
-                        src={thumbnailUrl || `${VITE_API_URL}/api/miro/thumbnails/${boardId}?token=${getToken()}`}
+                        src={thumbnailUrl || ''}
                         className="absolute inset-0 w-full h-full object-cover"
                         alt="Board Thumbnail"
                         onLoad={() => setIframeLoaded(true)}
