@@ -39,7 +39,7 @@ router.post(
             res.json({ insight });
         } catch (error) {
             console.error(`[${new Date().toISOString()}] AI analyze-test error:`, error);
-            res.status(500).json({ error: error.message || 'AI analysis failed.' });
+            res.status(error.status || 500).json({ error: error.message || 'AI analysis failed.' });
         }
     }
 );
@@ -70,7 +70,7 @@ router.post(
             res.json({ insights: insight });
         } catch (error) {
             console.error(`[${new Date().toISOString()}] AI analyze error:`, error);
-            res.status(500).json({ error: error.message || 'AI analysis failed.' });
+            res.status(error.status || 500).json({ error: error.message || 'AI analysis failed.' });
         }
     }
 );

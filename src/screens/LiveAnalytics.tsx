@@ -748,9 +748,15 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack }) => {
                     <AlertTriangle size={32} className="mx-auto mb-4 text-red-500" />
                     <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
                     <p className="text-sm text-red-600 mb-4">{aiError}</p>
-                    <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
-                      <RefreshCw size={14} className="mr-2" /> Retry Analysis
-                    </Button>
+                    {aiError?.includes('Settings') ? (
+                      <Button onClick={() => window.location.href = '/settings'} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                        <Settings size={14} className="mr-2" /> Go to Settings
+                      </Button>
+                    ) : (
+                      <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                        <RefreshCw size={14} className="mr-2" /> Retry Analysis
+                      </Button>
+                    )}
                   </div>
                 ) : aiInsights.length === 0 ? (
                   <div className="bg-[#fafafa] p-8 rounded-xl text-center">

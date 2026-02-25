@@ -22,6 +22,8 @@ function AppContent() {
   const [currentScreen, setCurrentScreen] = useState<Screen>(window.location.pathname === '/participate' ? "participate" : "dashboard");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeBoardName, setActiveBoardName] = useState("");
+  const [activeBoardId, setActiveBoardId] = useState("");
+  const [activeTestId, setActiveTestId] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,6 +49,7 @@ function AppContent() {
 
   const handleStartTest = () => {
     setIsModalOpen(false);
+    setCurrentScreen("analytics");
   };
 
   const { addTest, selectTest } = useTests();
@@ -80,10 +83,14 @@ function AppContent() {
         boardUrl: boardId
       });
 
-      // Wait a moment for test context to sync, then push to analytics
+      setActiveBoardId(boardId);
+      setActiveBoardName(boardName);
+      setActiveTestId(data.test._id);
+
+      // Wait a moment for test context to sync, then push to board-canvas
       setTimeout(() => {
         selectTest(data.test._id);
-        setCurrentScreen("analytics");
+        setCurrentScreen("board-canvas");
       }, 500);
 
     } catch (err) {
@@ -134,8 +141,8 @@ function AppContent() {
         {currentScreen === "board-canvas" && (
           <BoardCanvas
             boardName={activeBoardName}
-            boardId=""
-            testId=""
+            boardId={activeBoardId}
+            testId={activeTestId}
             onBack={() => setCurrentScreen("boards")}
           />
         )}
