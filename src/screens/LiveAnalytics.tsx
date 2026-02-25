@@ -171,6 +171,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const [highlightZone, setHighlightZone] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
+  const [isInteractMode, setIsInteractMode] = useState(false);
 
   const startWidgetId = selectedTest?.startWidgetId || null;
 
@@ -537,6 +538,23 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Board Canvas */}
         <div className="relative flex-1 bg-[#fafafa] overflow-auto">
+          {/* Floating Controls */}
+          <div className="absolute top-4 left-4 z-50 flex items-center bg-white rounded-lg shadow-md border border-[#050038]/10 p-1">
+            <button
+              onClick={() => setIsInteractMode(false)}
+              className={cn("px-3 py-1.5 text-sm font-medium rounded-md transition-colors", !isInteractMode ? "bg-[#050038] text-white" : "text-[#050038]/60 hover:text-[#050038] hover:bg-[#050038]/5")}
+            >
+              Heatmap
+            </button>
+            <button
+              onClick={() => setIsInteractMode(true)}
+              className={cn("px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-2", isInteractMode ? "bg-[#050038] text-white" : "text-[#050038]/60 hover:text-[#050038] hover:bg-[#050038]/5")}
+            >
+              <Hand size={14} />
+              Interact
+            </button>
+          </div>
+
           <div className="absolute inset-0 flex items-center justify-center p-8 min-w-[1000px] min-h-[800px]">
             <div
               ref={boardRef}
@@ -551,7 +569,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
             >
               {/* Miro Live Embed */}
               <iframe
-                className="w-full h-full border-0 pointer-events-none"
+                className={cn("w-full h-full border-0", isInteractMode ? "pointer-events-auto" : "pointer-events-none")}
                 src={`https://miro.com/app/live-embed/${selectedTest.boardUrl}/?embedAutoplay=true${startWidgetId ? `&moveToWidget=${startWidgetId}` : ''}`}
                 allowFullScreen
                 title="Miro Live Embed"
@@ -559,7 +577,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
 
               {/* ── Real Heatmap Canvas Overlay ─────────────── */}
               {heatmapData.length > 0 && (
-                <div className="absolute inset-0 pointer-events-none z-40">
+                <div className={cn("absolute inset-0 pointer-events-none z-40 transition-opacity", isInteractMode ? "opacity-40" : "opacity-100")}>
                   <HeatmapCanvas
                     data={heatmapData}
                     width={CANVAS_WIDTH_PX}
@@ -589,7 +607,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
 
               {/* ── Predictive Heatmap Overlay (AI-generated) ── */}
               {showPredictive && predictiveData.length > 0 && (
-                <div className="absolute inset-0 pointer-events-none z-41">
+                <div className={cn("absolute inset-0 pointer-events-none z-41 transition-opacity", isInteractMode ? "opacity-40" : "opacity-100")}>
                   <HeatmapCanvas
                     data={predictiveData.map(p => ({
                       x: p.x,

@@ -7,6 +7,30 @@ import AIInsight from '../models/AIInsight.js';
 // ── Provider API calls ───────────────────────────────────────
 
 async function callOpenAI(apiKey, prompt) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'gpt-5.2-2025-12-11',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+        }),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`OpenAI API error: ${err}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    return { content, cost: 0 };
+}
+
+async function callOpenRouter(apiKey, prompt) {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -24,7 +48,7 @@ async function callOpenAI(apiKey, prompt) {
 
     if (!response.ok) {
         const err = await response.text();
-        throw new Error(`OpenAI API error: ${err}`);
+        throw new Error(`OpenRouter API error: ${err}`);
     }
 
     const data = await response.json();
@@ -283,7 +307,7 @@ export async function analyzeSession(session, test, user, providerOverride) {
         provider = 'openai';
         apiKey = process.env.BEACON_OPENAI_KEY;
         if (!apiKey) {
-            const err = new Error('Add your own OpenRouter key in Settings to generate insights');
+            const err = new Error('Add your own OpenAI key in Settings to generate insights');
             err.status = 422;
             throw err;
         }
@@ -303,6 +327,9 @@ export async function analyzeSession(session, test, user, providerOverride) {
     switch (provider) {
         case 'openai':
             result = await callOpenAI(apiKey, prompt);
+            break;
+        case 'openrouter':
+            result = await callOpenRouter(apiKey, prompt);
             break;
         case 'anthropic':
             result = await callAnthropic(apiKey, prompt);
@@ -460,7 +487,7 @@ Respond ONLY with valid JSON in this exact format:
         provider = 'openai';
         apiKey = process.env.BEACON_OPENAI_KEY;
         if (!apiKey) {
-            const err = new Error('Add your own OpenRouter key in Settings to generate insights');
+            const err = new Error('Add your own OpenAI key in Settings to generate insights');
             err.status = 422;
             throw err;
         }
@@ -480,6 +507,9 @@ Respond ONLY with valid JSON in this exact format:
     switch (provider) {
         case 'openai':
             result = await callOpenAI(apiKey, prompt);
+            break;
+        case 'openrouter':
+            result = await callOpenRouter(apiKey, prompt);
             break;
         case 'anthropic':
             result = await callAnthropic(apiKey, prompt);
