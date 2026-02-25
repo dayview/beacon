@@ -320,10 +320,10 @@ export async function analyzeSession(session, test, user, providerOverride) {
     if (user.plan.tier === 'free') {
         // Prefer the platform pooled key; fall back to the user's own saved key
         const userOwnKey = user.getAiApiKey();
-        apiKey = process.env.BEACON_OPENAI_KEY || userOwnKey;
-        provider = process.env.BEACON_OPENAI_KEY
-            ? 'openai'
-            : (user.plan.aiProvider || 'openai');
+        apiKey = userOwnKey || process.env.BEACON_OPENAI_KEY;
+        provider = userOwnKey
+            ? (user.plan.aiProvider || 'openai')
+            : 'openai';
 
         if (!apiKey) {
             const err = new Error(
