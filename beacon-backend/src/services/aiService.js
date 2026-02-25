@@ -268,6 +268,26 @@ Return a JSON object with this exact shape:
 }`;
 }
 
+// ── Provider Fallback Logic ──────────────────────────────────
+
+function resolveProviderWithFallback(user, providerOverride) {
+    if (providerOverride && user.plan?.aiKeys?.[providerOverride]) {
+        return { provider: providerOverride, apiKey: user.plan.aiKeys[providerOverride] };
+    }
+    const aiKeys = user.plan?.aiKeys || {};
+    if (aiKeys.openai) {
+        return { provider: 'openai', apiKey: aiKeys.openai };
+    }
+    const pref = user.plan?.aiProvider;
+    if (pref && pref !== 'openai' && pref !== 'openrouter' && aiKeys[pref]) {
+        return { provider: pref, apiKey: aiKeys[pref] };
+    }
+    if (aiKeys.openrouter) {
+        return { provider: 'openrouter', apiKey: aiKeys.openrouter };
+    }
+    return null;
+}
+
 // ── Main analysis function ───────────────────────────────────
 
 /**
@@ -312,33 +332,41 @@ export async function analyzeSession(session, test, user, providerOverride) {
             throw err;
         }
     } else {
-        // Pro / Enterprise: use user's own key
-        provider = providerOverride || user.plan.aiProvider || 'openai';
-        apiKey = user.getAiApiKey();
-        if (!apiKey) {
-            throw new Error(
-                'No AI API key configured. Add your key in Settings → AI Provider.'
-            );
+        const resolved = resolveProviderWithFallback(user, providerOverride);
+        if (!resolved) {
+            throw new Error('No AI API key configured. Add your key in Settings → AI Provider.');
         }
+        provider = resolved.provider;
+        apiKey = resolved.apiKey;
     }
 
     // Call the appropriate provider
     let result;
-    switch (provider) {
-        case 'openai':
-            result = await callOpenAI(apiKey, prompt);
-            break;
-        case 'openrouter':
-            result = await callOpenRouter(apiKey, prompt);
-            break;
-        case 'anthropic':
-            result = await callAnthropic(apiKey, prompt);
-            break;
-        case 'custom':
-            result = await callCustom(apiKey, {}, prompt); // apiKey used as endpoint for custom
-            break;
-        default:
-            throw new Error(`Unsupported AI provider: ${provider}`);
+    try {
+        switch (provider) {
+            case 'openai':
+                result = await callOpenAI(apiKey, prompt);
+                break;
+            case 'openrouter':
+                result = await callOpenRouter(apiKey, prompt);
+                break;
+            case 'anthropic':
+                result = await callAnthropic(apiKey, prompt);
+                break;
+            case 'custom':
+                result = await callCustom(apiKey, {}, prompt); // apiKey used as endpoint for custom
+                break;
+            default:
+                throw new Error(`Unsupported AI provider: ${provider}`);
+        }
+    } catch (error) {
+        if (provider !== 'openrouter' && user.plan?.aiKeys?.openrouter) {
+            console.warn(`[aiService] ${provider} failed (${error.message}), falling back to OpenRouter`);
+            provider = 'openrouter';
+            result = await callOpenRouter(user.plan.aiKeys.openrouter, prompt);
+        } else {
+            throw error;
+        }
     }
 
     // Parse the AI response
@@ -492,33 +520,40 @@ Respond ONLY with valid JSON in this exact format:
             throw err;
         }
     } else {
-        // Pro / Enterprise: use user's own key
-        provider = user.plan.aiProvider || 'openai';
-        apiKey = user.getAiApiKey();
-        if (!apiKey) {
-            throw new Error(
-                'No AI API key configured. Add your key in Settings → AI Provider.'
-            );
+        const resolved = resolveProviderWithFallback(user);
+        if (!resolved) {
+            throw new Error('No AI API key configured. Add your key in Settings → AI Provider.');
         }
+        provider = resolved.provider;
+        apiKey = resolved.apiKey;
     }
 
     // Call the appropriate provider
     let result;
-    switch (provider) {
-        case 'openai':
-            result = await callOpenAI(apiKey, prompt);
-            break;
-        case 'openrouter':
-            result = await callOpenRouter(apiKey, prompt);
-            break;
-        case 'anthropic':
-            result = await callAnthropic(apiKey, prompt);
-            break;
-        case 'custom':
-            result = await callCustom(apiKey, {}, prompt); // apiKey used as endpoint for custom
-            break;
-        default:
-            throw new Error(`Unsupported AI provider: ${provider}`);
+    try {
+        switch (provider) {
+            case 'openai':
+                result = await callOpenAI(apiKey, prompt);
+                break;
+            case 'openrouter':
+                result = await callOpenRouter(apiKey, prompt);
+                break;
+            case 'anthropic':
+                result = await callAnthropic(apiKey, prompt);
+                break;
+            case 'custom':
+                result = await callCustom(apiKey, {}, prompt); // apiKey used as endpoint for custom
+                break;
+            default:
+                throw new Error(`Unsupported AI provider: ${provider}`);
+        }
+    } catch (error) {
+        if (provider !== 'openrouter' && user.plan?.aiKeys?.openrouter) {
+            provider = 'openrouter';
+            result = await callOpenRouter(user.plan.aiKeys.openrouter, prompt);
+        } else {
+            throw error;
+        }
     }
 
     // Parse the AI response
