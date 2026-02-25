@@ -8,6 +8,7 @@ export const Participate: React.FC = () => {
     const [boardUrl, setBoardUrl] = useState<string | null>(null);
     const [isDone, setIsDone] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [startWidgetId, setStartWidgetId] = useState<string | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
 
@@ -35,10 +36,13 @@ export const Participate: React.FC = () => {
 
         const socket = getSocket();
 
-        const handleCreated = ({ sessionId, boardId }: { sessionId: string, boardId?: string }) => {
+        const handleCreated = ({ sessionId, boardId, startWidgetId }: { sessionId: string, boardId?: string, startWidgetId?: string }) => {
             setSessionId(sessionId);
             if (boardId) {
                 setBoardUrl(boardId);
+            }
+            if (startWidgetId) {
+                setStartWidgetId(startWidgetId);
             }
         };
 
@@ -115,7 +119,7 @@ export const Participate: React.FC = () => {
                         }}
                     >
                         <iframe
-                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true`}
+                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true${startWidgetId ? `&moveToWidget=${startWidgetId}` : ''}`}
                             width="100%"
                             height="100%"
                             style={{ border: 'none' }}
