@@ -173,7 +173,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const hasFetchedFlow = useRef(false);
   const CANVAS_WIDTH_PX = 1200;
   const CANVAS_HEIGHT_PX = 800;
-  const COORD_MAX = 100; // coordinates are in 0–100 percent space
+  const COORD_MAX_X = 1200;
+  const COORD_MAX_Y = 800;
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 200));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 25));
@@ -222,10 +223,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
         { element: 'Bottom (Footer)', color: '#050038', count: 0 },
       ];
       for (const p of allPoints) {
-        if (p.y < COORD_MAX / 3) {
-          if (p.x < COORD_MAX / 2) zones[0].count++;
+        if (p.y < COORD_MAX_Y / 3) {
+          if (p.x < COORD_MAX_X / 2) zones[0].count++;
           else zones[1].count++;
-        } else if (p.y < (COORD_MAX * 2) / 3) {
+        } else if (p.y < (COORD_MAX_Y * 2) / 3) {
           zones[2].count++;
         } else {
           zones[3].count++;

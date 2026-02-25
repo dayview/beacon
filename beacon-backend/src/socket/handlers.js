@@ -77,12 +77,7 @@ export function initSocketHandlers(io) {
                 socket.sessionId = session._id.toString();
                 socket.testId = testId;
 
-                // Extract startWidgetId from first frame, or first element
-                let startWidgetId = null;
-                if (test.board && Array.isArray(test.board.elements) && test.board.elements.length > 0) {
-                    const firstFrame = test.board.elements.find(e => e.type === 'frame');
-                    startWidgetId = firstFrame ? firstFrame.miroId : test.board.elements[0].miroId;
-                }
+
 
                 // Notify the participant of their session ID
                 const boardId = typeof test.board === 'object' ? test.board.miroId || test.board._id : test.board;
@@ -90,7 +85,6 @@ export function initSocketHandlers(io) {
                     sessionId: session._id,
                     testId,
                     boardId,
-                    startWidgetId,
                 });
 
                 // Broadcast to researchers watching this test
