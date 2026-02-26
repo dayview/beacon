@@ -40,7 +40,7 @@ async function callOpenRouter(apiKey, prompt) {
             'X-Title': 'Beacon',
         },
         body: JSON.stringify({
-            model: 'stepfun/step-3.5-flash:free',
+            model: 'meta-llama/llama-3.3-70b-instruct:free',
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
