@@ -25,20 +25,28 @@
   ### Install dependencies
   ```bash
   npm install
+  cd beacon-backend && npm install && cd ..
   # or
   pnpm install
   ```
 
   ### Start the development server
+  Frontend and backend are separate apps (see [`beacon-backend/README.md`](beacon-backend/README.md) for backend env setup) and both need to be running. Start both at once from the repo root:
   ```bash
-  npm run dev
+  npm run dev:all
   ```
-  The app will be available a `http://localhost:5173` by default.
+  Or run them separately in two terminals:
+  ```bash
+  npm run dev           # frontend, http://localhost:5173
+  npm run dev:backend   # backend,  http://localhost:3001
+  ```
   
   ### Scripts
   | Command | Description |
   |---|---|
-  | `npm run dev` | Starts the local development server |
+  | `npm run dev` | Starts the frontend dev server only |
+  | `npm run dev:backend` | Starts the backend dev server only |
+  | `npm run dev:all` | Starts both frontend and backend together (via `concurrently`) |
   | `npm run build` | Builds the app for production |
   | `npm run preview` | Previews the production build locally |
   | `npm run lint` | Runs ESLint for code quality checks |
