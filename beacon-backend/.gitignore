@@ -1,3 +1,11 @@
 node_modules/
-.env
 dist/
+
+# Env files — ignore all variants, keep the checked-in example
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+!.env.example

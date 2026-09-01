@@ -1,7 +1,11 @@
 node_modules
 dist
+
+# Env files — ignore all variants, keep the checked-in example
 .env
 .env.local
+.env.*.local
+.env.development
+.env.test
 .env.production
-e2e_output.txt
-e2e_test.js
+!.env.example
