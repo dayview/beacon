@@ -10,7 +10,7 @@ npm install
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env with your credentials (MongoDB URI, JWT secret, etc.)
+# Edit .env with your credentials (MongoDB URI, Miro OAuth creds, etc.)
 
 # 3. Generate an encryption key
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -23,11 +23,12 @@ npm start      # production
 
 ## API Endpoints
 
+No accounts, no passwords — `POST /api/auth/start` provisions an anonymous owner and returns an opaque `accessToken`. That token is both the bearer credential for every other request below and the secret embedded in the frontend's private `/dashboard/:accessToken` link; there's nothing to register or log into.
+
 | Method | Route | Auth | Description |
 |--------|-------|------|-------------|
-| POST | `/api/auth/register` | — | Register a new user |
-| POST | `/api/auth/login` | — | Login, returns JWT |
-| GET | `/api/auth/me` | ✓ | Get current user |
+| POST | `/api/auth/start` | — | Provision a new anonymous owner, returns `{ token, user }` |
+| GET | `/api/auth/me` | ✓ | Get current owner |
 | GET | `/api/miro/connect` | ✓ | Miro OAuth callback |
 | GET | `/api/miro/boards` | ✓ | List Miro boards |
 | POST | `/api/miro/sync/:boardId` | ✓ | Sync a Miro board |

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import auth from '../middleware/auth.js';
-import { requireRole } from '../middleware/auth.js';
 import Template from '../models/Template.js';
 import { copyBoard } from '../services/miroService.js';
 
@@ -51,8 +50,8 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// ── POST /api/templates (admin only) ─────────────────────────
-router.post('/', auth, requireRole('admin'), async (req, res) => {
+// ── POST /api/templates ───────────────────────────────────────
+router.post('/', auth, async (req, res) => {
     try {
         const { name, description, category, color, popular, miroBoardId, thumbnailUrl } = req.body;
 
@@ -78,8 +77,8 @@ router.post('/', auth, requireRole('admin'), async (req, res) => {
     }
 });
 
-// ── PATCH /api/templates/:id (admin only) ────────────────────
-router.patch('/:id', auth, requireRole('admin'), async (req, res) => {
+// ── PATCH /api/templates/:id ──────────────────────────────────
+router.patch('/:id', auth, async (req, res) => {
     try {
         const allowedFields = ['name', 'description', 'category', 'color', 'popular', 'miroBoardId', 'thumbnailUrl'];
         const updates = {};
@@ -106,8 +105,8 @@ router.patch('/:id', auth, requireRole('admin'), async (req, res) => {
     }
 });
 
-// ── DELETE /api/templates/:id (admin only) ───────────────────
-router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
+// ── DELETE /api/templates/:id ─────────────────────────────────
+router.delete('/:id', auth, async (req, res) => {
     try {
         const template = await Template.findByIdAndDelete(req.params.id);
         if (!template) {

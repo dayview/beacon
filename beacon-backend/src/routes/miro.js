@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
 import auth from '../middleware/auth.js';
 import {
     exchangeCodeForTokens,
@@ -11,9 +10,11 @@ const router = Router();
 
 // ── GET /api/miro/authorize ─────────────────────────────
 // Step 1: Initiate OAuth - redirect user to Miro's auth screen
-// The Beacon JWT is passed as 'state' so we can recover the user after redirect
+// The Beacon access token is passed as 'state' so we can recover the owner
+// after the redirect — it's already an opaque per-owner secret, so no
+// signing/decoding is needed, just a direct lookup on callback.
 router.get('/authorize', auth, (req, res) => {
-    const state = req.token; // the Beacon JWT
+    const state = req.token;
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.MIRO_CLIENT_ID,
@@ -34,15 +35,8 @@ router.get('/callback', async (req, res) => {
     }
 
     try {
-        let decoded;
-        try {
-            decoded = jwt.verify(state, process.env.JWT_SECRET);
-        } catch {
-            return res.redirect(`${frontendUrl}?miro_error=true`);
-        }
-
         const User = (await import('../models/User.js')).default;
-        const user = await User.findById(decoded.id);
+        const user = await User.findOne({ accessToken: state });
         if (!user) return res.redirect(`${frontendUrl}?miro_error=true`);
 
         const tokens = await exchangeCodeForTokens(code);
@@ -85,26 +79,13 @@ router.get('/boards', auth, async (req, res) => {
 });
 
 // ── GET /api/miro/thumbnails/:boardId ────────────────────────
-// Proxy board thumbnails, as the raw imageURL requires Auth headers
-router.get('/thumbnails/:boardId', async (req, res) => {
+// Proxy board thumbnails, as the raw imageURL requires Auth headers.
+// Uses the shared `auth` middleware, which already accepts ?token= for
+// exactly this kind of plain <img src> usage that can't set headers.
+router.get('/thumbnails/:boardId', auth, async (req, res) => {
     try {
-        // Allow query param token for simple <img> src usage
-        const token = req.query.token;
-        if (!token) return res.status(401).send('Unauthorized');
-
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_SECRET);
-        } catch {
-            return res.status(401).send('Invalid token');
-        }
-
-        const User = (await import('../models/User.js')).default;
-        const user = await User.findById(decoded.id);
-        if (!user) return res.status(401).send('User not found');
-
         const { getValidToken } = await import('../services/miroService.js');
-        const miroToken = await getValidToken(user);
+        const miroToken = await getValidToken(req.user);
 
         // Use the board picture URL if passed in query, else fetch it
         let imageUrl = req.query.url;

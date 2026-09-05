@@ -3,6 +3,14 @@ import { api, ApiTest, ApiError } from '../lib/api';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 
+/** One frame-per-step walkthrough step. `targetElement` is a Miro frame ID. */
+export interface TestTask {
+  id: string;
+  description: string;
+  targetElement: string;
+  order: number;
+}
+
 /** Adapter: converts backend ApiTest to a shape the existing UI understands */
 export interface Test {
   id: string;
@@ -16,6 +24,8 @@ export interface Test {
   thumbnail?: string;
   boardUrl?: string;
   startWidgetId?: string;
+  /** Ordered walkthrough steps; empty means participants freely explore the whole board. */
+  tasks?: TestTask[];
   analytics?: TestAnalytics;
 }
 
@@ -86,6 +96,7 @@ function mapApiTestToTest(t: ApiTest): Test {
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
     boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
     startWidgetId,
+    tasks: (t.tasks || []).filter((task) => !!task.targetElement),
   };
 }
 
@@ -140,7 +151,9 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       name: test.name,
       type: test.type,
       status: test.status === 'live' ? 'active' : 'draft',
-      tasks: test.description ? [{ description: test.description, order: 0 }] : [],
+      tasks: test.tasks && test.tasks.length > 0
+        ? test.tasks
+        : (test.description ? [{ description: test.description, order: 0 }] : []),
       settings: { maxParticipants: test.participants?.target || 10 },
       board: test.boardUrl,
     });

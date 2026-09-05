@@ -4,7 +4,6 @@ import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
 import { api, ApiTemplate, ApiTemplateCategory } from "../lib/api";
-import { useAuth } from "../contexts/AuthContext";
 
 interface TemplatesProps {
   onNavigate: (screen: string) => void;
@@ -20,7 +19,6 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 export const Templates: React.FC<TemplatesProps> = ({ onNavigate, onSignOut }) => {
-  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -105,7 +103,7 @@ export const Templates: React.FC<TemplatesProps> = ({ onNavigate, onSignOut }) =
         <div className="flex items-center gap-4">
           <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
             <span className="text-sm font-bold text-[#4262ff]">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              B
             </span>
           </button>
         </div>

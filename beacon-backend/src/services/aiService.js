@@ -268,18 +268,29 @@ Return a JSON object with this exact shape:
 }`;
 }
 
-// ── Provider Fallback Logic ──────────────────────────────────
+// ── Provider Resolution ───────────────────────────────────────
 
-function resolveProviderWithFallback(user, providerOverride) {
-    const apiKey = user.getAiApiKey();
+/**
+ * Resolve which AI provider/key to use. Everyone gets the same rule now
+ * that there are no plan tiers: prefer the user's own saved key (and its
+ * provider) when they've configured one, otherwise fall back to the
+ * platform's pooled key (BEACON_OPENAI_KEY) so analysis works with zero
+ * setup. `providerOverride` (an explicit request to force a provider) wins
+ * over either when present.
+ */
+function resolveApiKey(user, providerOverride) {
+    const userOwnKey = user.getAiApiKey();
+    const apiKey = userOwnKey || process.env.BEACON_OPENAI_KEY;
+
     if (!apiKey) {
-        return null;
+        const err = new Error(
+            'AI API key not configured. Go to Settings → AI Provider to add your key.'
+        );
+        err.status = 422;
+        throw err;
     }
-    if (providerOverride) {
-        return { provider: providerOverride, apiKey };
-    }
-    // Force provider to openai
-    const provider = user.plan.aiProvider || 'openai';
+
+    const provider = providerOverride || (userOwnKey ? (user.plan.aiProvider || 'openai') : 'openai');
     return { provider, apiKey };
 }
 
@@ -313,33 +324,7 @@ export async function analyzeSession(session, test, user, providerOverride) {
     const hotspots = calculateHotspots(session.events || []);
     const prompt = buildAnalysisPrompt(session, test, boardContext, hotspots);
 
-    // Determine provider and API key
-    let provider;
-    let apiKey;
-
-    if (user.plan.tier === 'free') {
-        // Prefer the platform pooled key; fall back to the user's own saved key
-        const userOwnKey = user.getAiApiKey();
-        apiKey = userOwnKey || process.env.BEACON_OPENAI_KEY;
-        provider = userOwnKey
-            ? (user.plan.aiProvider || 'openai')
-            : 'openai';
-
-        if (!apiKey) {
-            const err = new Error(
-                'AI API key not configured. Go to Settings \u2192 AI Provider to add your key.'
-            );
-            err.status = 422;
-            throw err;
-        }
-    } else {
-        const resolved = resolveProviderWithFallback(user, providerOverride);
-        if (!resolved) {
-            throw new Error('No AI API key configured. Add your key in Settings → AI Provider.');
-        }
-        provider = resolved.provider;
-        apiKey = resolved.apiKey;
-    }
+    const { provider, apiKey } = resolveApiKey(user, providerOverride);
 
     // Call the appropriate provider
     let result;
@@ -502,33 +487,7 @@ Respond ONLY with valid JSON in this exact format:
   "summary": "..."
 }`;
 
-    // Determine provider and API key
-    let provider;
-    let apiKey;
-
-    if (user.plan.tier === 'free') {
-        // Prefer the user's own saved key; fall back to the platform pooled key
-        const userOwnKey = user.getAiApiKey();
-        apiKey = userOwnKey || process.env.BEACON_OPENAI_KEY;
-        provider = userOwnKey
-            ? (user.plan.aiProvider || 'openai')
-            : 'openai';
-
-        if (!apiKey) {
-            const err = new Error(
-                'AI API key not configured. Go to Settings \u2192 AI Provider to add your key.'
-            );
-            err.status = 422;
-            throw err;
-        }
-    } else {
-        const resolved = resolveProviderWithFallback(user);
-        if (!resolved) {
-            throw new Error('No AI API key configured. Add your key in Settings → AI Provider.');
-        }
-        provider = resolved.provider;
-        apiKey = resolved.apiKey;
-    }
+    const { provider, apiKey } = resolveApiKey(user);
 
     // Call the appropriate provider
     let result;

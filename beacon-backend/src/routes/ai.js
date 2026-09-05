@@ -4,7 +4,6 @@ import Test from '../models/Test.js';
 import AIInsight from '../models/AIInsight.js';
 import auth from '../middleware/auth.js';
 import { authorizeSessionOwner, authorizeTestOwner } from '../middleware/authorize.js';
-import { checkAIQuota } from '../middleware/planLimits.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 import { analyzeSession } from '../services/aiService.js';
 
@@ -17,7 +16,6 @@ router.post(
     objectIdParam('testId'),
     validate,
     authorizeTestOwner('testId'),
-    checkAIQuota,
     async (req, res) => {
         try {
             const test = await Test.findById(req.params.testId);
@@ -54,7 +52,6 @@ router.post(
     objectIdParam('sessionId'),
     validate,
     authorizeSessionOwner('sessionId'),
-    checkAIQuota,
     async (req, res) => {
         try {
             const session = await Session.findById(req.params.sessionId);

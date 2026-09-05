@@ -19,34 +19,6 @@ export const validate = (req, res, next) => {
 
 // ── Reusable validation chains ───────────────────────────────
 
-export const registerValidation = [
-    body('email')
-        .isEmail()
-        .withMessage('Valid email is required')
-        .normalizeEmail(),
-    body('password')
-        .isLength({ min: 6 })
-        .withMessage('Password must be at least 6 characters'),
-    body('name')
-        .trim()
-        .notEmpty()
-        .withMessage('Name is required'),
-    body('role')
-        .optional()
-        .isIn(['researcher', 'participant', 'admin'])
-        .withMessage('Invalid role'),
-];
-
-export const loginValidation = [
-    body('email')
-        .isEmail()
-        .withMessage('Valid email is required')
-        .normalizeEmail(),
-    body('password')
-        .notEmpty()
-        .withMessage('Password is required'),
-];
-
 export const objectIdParam = (paramName = 'id') => [
     param(paramName)
         .isMongoId()

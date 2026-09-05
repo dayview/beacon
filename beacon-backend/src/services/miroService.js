@@ -136,6 +136,7 @@ export async function syncBoard(user, miroBoard) {
     const elements = items.map((item) => ({
         miroId: item.id,
         type: mapMiroType(item.type),
+        parentFrameId: item.parent?.id || null,
         bounds: {
             x: item.position?.x || item.geometry?.x || 0,
             y: item.position?.y || item.geometry?.y || 0,

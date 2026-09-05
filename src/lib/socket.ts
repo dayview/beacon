@@ -45,6 +45,10 @@ export function emitSessionEvent(data: {
     coordinates: { x: number; y: number };
     timestamp?: Date;
     element?: string;
+    /** Miro frame this event belongs to, when the caller already knows it
+     *  (e.g. a frame-per-step flow) — trusted as-is by the backend instead
+     *  of being resolved from Board.elements. */
+    frameId?: string;
     metadata?: Record<string, unknown>;
 }): void {
     getSocket().emit('session:event', {

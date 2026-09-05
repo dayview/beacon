@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react";
-import { User, Bell, Lock, CreditCard, Globe, Save, Upload, CheckCircle2, Link2, Sparkles } from "lucide-react";
+import React, { useState } from "react";
+import { Bell, Save, CheckCircle2, Link2, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { UserProfileModal } from "../components/UserProfileModal";
 import { toast } from "sonner";
@@ -13,22 +13,8 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => {
   const { user, refreshUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('integrations');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-
-  // Profile state
-  const [firstName, setFirstName] = useState("Leo");
-  const [lastName, setLastName] = useState("Developer");
-  const [email, setEmail] = useState("leo@example.com");
-  const [organization, setOrganization] = useState("De La Salle University - Manila");
-  const [profileDirty, setProfileDirty] = useState(false);
-  const [profilePhoto, setProfilePhoto] = useState("https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Security state
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Notification state
   const [notifications, setNotifications] = useState({
@@ -53,59 +39,12 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
   const [isSavingAi, setIsSavingAi] = useState(false);
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
     { id: 'integrations', label: 'Integrations', icon: Link2 },
     { id: 'ai', label: 'AI Settings', icon: Sparkles },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Lock },
     // { id: 'billing', label: 'Billing', icon: CreditCard },
     // { id: 'preferences', label: 'Preferences', icon: Globe },
   ];
-
-  const handleSaveProfile = () => {
-    setProfileDirty(false);
-    toast.success("Profile updated successfully!");
-  };
-
-  const handleChangePhoto = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error("File too large. Max size is 2MB.");
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      setProfilePhoto(url);
-      toast.success("Profile photo updated!");
-    }
-  };
-
-  const handleUpdatePassword = () => {
-    if (!currentPassword) {
-      toast.error("Please enter your current password");
-      return;
-    }
-    if (!newPassword) {
-      toast.error("Please enter a new password");
-      return;
-    }
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    toast.success("Password updated successfully!");
-  };
 
   const handleSaveNotifications = () => {
     toast.success("Notification preferences saved!");
@@ -133,11 +72,6 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
     }
   };
 
-  const handleProfileChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setter(e.target.value);
-    setProfileDirty(true);
-  };
-
   return (
     <div className="min-h-screen bg-[#fafafa]">
       {/* Header */}
@@ -154,7 +88,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
         <div className="flex items-center gap-4">
           <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
             <span className="text-sm font-bold text-[#4262ff]">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              B
             </span>
           </button>
         </div>
@@ -189,7 +123,7 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
                   onClick={onSignOut}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                 >
-                  Sign Out
+                  Start a new workspace
                 </button>
               </div>
             </div>
@@ -232,84 +166,6 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
                           Connect Miro
                         </Button>
                       )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Profile Tab */}
-                {activeTab === 'profile' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h2 className="text-xl font-bold text-[#050038] mb-4">Profile Information</h2>
-                      <p className="text-sm text-[#050038]/60 mb-6">Update your account profile information and email address.</p>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                      <div className="h-20 w-20 rounded-full bg-[#fafafa] overflow-hidden border-2 border-[#050038]/10">
-                        <img src={profilePhoto} alt="Profile" className="h-full w-full object-cover" />
-                      </div>
-                      <div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-                        <Button variant="secondary" onClick={handleChangePhoto}>
-                          <Upload size={16} className="mr-2" />
-                          Change Photo
-                        </Button>
-                        <p className="text-xs text-[#050038]/60 mt-2">JPG, PNG or GIF. Max size 2MB.</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-[#050038] mb-2">First Name</label>
-                        <input
-                          type="text"
-                          value={firstName}
-                          onChange={handleProfileChange(setFirstName)}
-                          className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-[#050038] mb-2">Last Name</label>
-                        <input
-                          type="text"
-                          value={lastName}
-                          onChange={handleProfileChange(setLastName)}
-                          className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-[#050038] mb-2">Email Address</label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={handleProfileChange(setEmail)}
-                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-[#050038] mb-2">Organization</label>
-                      <input
-                        type="text"
-                        value={organization}
-                        onChange={handleProfileChange(setOrganization)}
-                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                      />
-                    </div>
-
-                    <div className="pt-4 border-t border-[#050038]/10">
-                      <Button variant="primary" onClick={handleSaveProfile} disabled={!profileDirty}>
-                        <Save size={18} className="mr-2" />
-                        {profileDirty ? "Save Changes" : "Saved"}
-                      </Button>
                     </div>
                   </div>
                 )}
@@ -416,60 +272,6 @@ export const Settings: React.FC<SettingsProps> = ({ onNavigate, onSignOut }) => 
                   </div>
                 )}
 
-                {/* Security Tab */}
-                {activeTab === 'security' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h2 className="text-xl font-bold text-[#050038] mb-4">Security Settings</h2>
-                      <p className="text-sm text-[#050038]/60 mb-6">Manage your password and security preferences.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-[#050038] mb-2">Current Password</label>
-                      <input
-                        type="password"
-                        placeholder="Enter current password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-[#050038] mb-2">New Password</label>
-                      <input
-                        type="password"
-                        placeholder="Enter new password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                      />
-                      {newPassword && newPassword.length < 8 && (
-                        <p className="text-xs text-red-500 mt-1">Password must be at least 8 characters</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-[#050038] mb-2">Confirm Password</label>
-                      <input
-                        type="password"
-                        placeholder="Confirm new password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-4 py-2 rounded-lg border border-[#050038]/10 focus:outline-none focus:ring-2 focus:ring-[#4262ff]"
-                      />
-                      {confirmPassword && confirmPassword !== newPassword && (
-                        <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
-                      )}
-                    </div>
-
-                    <div className="pt-4 border-t border-[#050038]/10">
-                      <Button variant="primary" onClick={handleUpdatePassword}>
-                        Update Password
-                      </Button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Billing and Preferences removed as requested */}
               </div>

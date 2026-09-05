@@ -7,6 +7,11 @@ import { Input } from "./ui/Input";
 import { ChevronDown } from "lucide-react";
 import { useTests } from "../contexts/TestContext";
 
+interface BoardFrame {
+  miroId: string;
+  content: string;
+}
+
 interface TestSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +35,9 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [selectedBoardId, setSelectedBoardId] = useState("");
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
   const [hasMiroAuthError, setHasMiroAuthError] = useState(false);
+  const [frames, setFrames] = useState<BoardFrame[]>([]);
+  const [isSyncingFrames, setIsSyncingFrames] = useState(false);
+  const [selectedFrameIds, setSelectedFrameIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -51,8 +59,59 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
     }
   }, [isOpen]);
 
+  // Sync the selected board so its frames are available for the step
+  // picker — frame-per-step attribution needs each step's Miro frame ID,
+  // which only exists in our DB once the board has been synced.
+  useEffect(() => {
+    if (!selectedBoardId) {
+      setFrames([]);
+      setSelectedFrameIds([]);
+      return;
+    }
+    let cancelled = false;
+    setIsSyncingFrames(true);
+    setSelectedFrameIds([]);
+    api
+      .post<{ board: { elements?: { miroId: string; type: string; content: string }[] } }>(
+        `/api/miro/sync/${selectedBoardId}`
+      )
+      .then((data) => {
+        if (cancelled) return;
+        const boardFrames = (data.board.elements || [])
+          .filter((el) => el.type === "frame")
+          .map((el) => ({ miroId: el.miroId, content: el.content || "Untitled frame" }));
+        setFrames(boardFrames);
+      })
+      .catch((err) => {
+        console.error("Failed to sync board frames", err);
+        if (!cancelled) setFrames([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsSyncingFrames(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBoardId]);
+
+  const toggleFrame = (miroId: string) => {
+    setSelectedFrameIds((prev) =>
+      prev.includes(miroId) ? prev.filter((id) => id !== miroId) : [...prev, miroId]
+    );
+  };
+
   const handleStart = async () => {
     try {
+      const tasks = selectedFrameIds.map((miroId, index) => {
+        const frame = frames.find((f) => f.miroId === miroId);
+        return {
+          id: miroId,
+          description: frame?.content || `Section ${index + 1}`,
+          targetElement: miroId,
+          order: index,
+        };
+      });
+
       const newTest = await addTest({
         name: testName,
         description: description || `Usability test for ${testName}`,
@@ -62,7 +121,8 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
           current: 0,
           target: targetParticipants
         },
-        boardUrl: selectedBoardId
+        boardUrl: selectedBoardId,
+        tasks,
       });
 
       toast.success("Test started successfully!");
@@ -76,6 +136,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         setMode("live-session");
         setTargetParticipants(20);
         setSelectedBoardId(boards[0]?.id || "");
+        setSelectedFrameIds([]);
       }, 500);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -91,7 +152,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
       {/* Step Indicator */}
       <div className="mb-8">
         <div className="flex items-center justify-between px-2">
-          {[1, 2, 3].map((s, index) => (
+          {[1, 2, 3, 4].map((s, index) => (
             <React.Fragment key={s}>
               <div className="flex flex-col items-center gap-2">
                 <div
@@ -105,10 +166,11 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                 <span className="text-xs text-[#050038]/60">
                   {s === 1 && "Details"}
                   {s === 2 && "Mode"}
-                  {s === 3 && "Setup"}
+                  {s === 3 && "Flow"}
+                  {s === 4 && "Setup"}
                 </span>
               </div>
-              {index < 2 && (
+              {index < 3 && (
                 <div className={`h-px flex-1 ${step > s ? "bg-[#4262ff]" : "bg-[#050038]/10"}`} />
               )}
             </React.Fragment>
@@ -245,6 +307,51 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
 
         {step === 3 && (
           <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div>
+              <h3 className="font-semibold text-[#050038]">Walkthrough steps (optional)</h3>
+              <p className="mt-1 text-sm text-[#050038]/60">
+                Pick the frames you want participants guided through, in order. Skip this to let participants freely explore the whole board instead.
+              </p>
+            </div>
+            {isSyncingFrames ? (
+              <div className="rounded-xl border border-[#050038]/10 bg-white p-6 text-sm text-[#050038]/60">
+                Syncing board frames...
+              </div>
+            ) : frames.length === 0 ? (
+              <div className="rounded-xl border border-[#050038]/10 bg-white p-6 text-sm text-[#050038]/60">
+                This board has no frames — participants will explore the whole board freely.
+              </div>
+            ) : (
+              <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1">
+                {frames.map((frame) => {
+                  const orderIndex = selectedFrameIds.indexOf(frame.miroId);
+                  const isSelected = orderIndex !== -1;
+                  return (
+                    <div
+                      key={frame.miroId}
+                      onClick={() => toggleFrame(frame.miroId)}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${isSelected
+                        ? "border-[#4262ff] bg-[#4262ff]/5"
+                        : "border-[#050038]/10 bg-white hover:bg-[#fafafa]"
+                        }`}
+                    >
+                      <div
+                        className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isSelected ? "bg-[#4262ff] text-white" : "border border-[#050038]/20 text-[#050038]/40"
+                          }`}
+                      >
+                        {isSelected ? orderIndex + 1 : ""}
+                      </div>
+                      <span className="text-sm text-[#050038]">{frame.content}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="rounded-xl border border-[#050038]/10 bg-white p-6">
               <h3 className="font-semibold text-[#050038]">Ready to Start</h3>
               <p className="mt-2 text-sm text-[#050038]/60">
@@ -263,6 +370,14 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                     <span className="font-semibold text-[#050038]">{targetParticipants} participants</span>
                   </div>
                 )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#050038]/60">Flow:</span>
+                  <span className="font-semibold text-[#050038]">
+                    {selectedFrameIds.length > 0
+                      ? `${selectedFrameIds.length} guided step${selectedFrameIds.length === 1 ? '' : 's'}`
+                      : 'Free exploration'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -280,14 +395,14 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         <Button
           disabled={step === 1 && (!testName || !selectedBoardId)}
           onClick={() => {
-            if (step < 3) {
+            if (step < 4) {
               setStep(step + 1);
             } else {
               handleStart();
             }
           }}
         >
-          {step < 3 ? "Next →" : "Start Test →"}
+          {step < 4 ? "Next →" : "Start Test →"}
         </Button>
       </div>
     </Modal>

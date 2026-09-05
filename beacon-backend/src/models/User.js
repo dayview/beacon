@@ -1,43 +1,22 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { encrypt, decrypt } from '../services/encryptionService.js';
 
-const SALT_ROUNDS = 10;
-
+// No accounts, no passwords — a User is just the anonymous owner behind a
+// private access link. `accessToken` is that link's secret: whoever holds
+// it can act as this owner. There is nothing to register or log into.
 const userSchema = new mongoose.Schema({
-    email: {
+    accessToken: {
         type: String,
-        required: [true, 'Email is required'],
         unique: true,
-        lowercase: true,
-        trim: true,
-        match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
-    },
-    passwordHash: {
-        type: String,
-        required: [true, 'Password is required'],
-    },
-    name: {
-        type: String,
-        required: [true, 'Name is required'],
-        trim: true,
-    },
-    role: {
-        type: String,
-        enum: ['researcher', 'participant', 'admin'],
-        default: 'researcher',
+        required: true,
+        default: () => crypto.randomBytes(24).toString('hex'),
     },
     workspace: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Workspace',
     },
     plan: {
-        tier: {
-            type: String,
-            enum: ['free', 'pro', 'enterprise'],
-            default: 'free',
-        },
         aiProvider: {
             type: String,
             enum: ['openai', 'openrouter', 'anthropic', 'custom', null],
@@ -46,10 +25,6 @@ const userSchema = new mongoose.Schema({
         aiApiKey: {
             type: String, // stored encrypted
             default: null,
-        },
-        recordingEnabled: {
-            type: Boolean,
-            default: false,
         },
     },
     miroTokens: {
@@ -63,37 +38,7 @@ const userSchema = new mongoose.Schema({
     },
 });
 
-// ── Pre-save: hash password ──────────────────────────────────
-userSchema.pre('save', async function (next) {
-    // Only hash if passwordHash is being set with a plaintext value
-    if (!this.isModified('passwordHash')) return next();
-    try {
-        this.passwordHash = await bcrypt.hash(this.passwordHash, SALT_ROUNDS);
-        next();
-    } catch (err) {
-        next(err);
-    }
-});
-
 // ── Methods ──────────────────────────────────────────────────
-
-/**
- * Compare a candidate password against the stored hash.
- */
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.passwordHash);
-};
-
-/**
- * Generate a signed JWT for this user.
- */
-userSchema.methods.generateToken = function () {
-    return jwt.sign(
-        { id: this._id, email: this.email, role: this.role },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
-    );
-};
 
 /**
  * Set the AI API key (encrypts before storing).
@@ -132,19 +77,15 @@ userSchema.methods.getMiroTokens = function () {
 };
 
 /**
- * Return a safe user object (no secrets).
+ * Return a safe user object (no secrets — accessToken is the secret and is
+ * never included here; it's only ever returned directly from /auth/start).
  */
 userSchema.methods.toSafeObject = function () {
     return {
         id: this._id,
-        email: this.email,
-        name: this.name,
-        role: this.role,
         workspace: this.workspace,
         plan: {
-            tier: this.plan.tier,
             aiProvider: this.plan.aiProvider,
-            recordingEnabled: this.plan.recordingEnabled,
             hasAiKey: !!this.plan.aiApiKey,
         },
         hasMiroConnected: !!(this.miroTokens && this.miroTokens.accessToken),

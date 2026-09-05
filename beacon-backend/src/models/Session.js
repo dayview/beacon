@@ -11,6 +11,11 @@ const eventSchema = new mongoose.Schema({
         y: { type: Number },
     },
     element: { type: String, default: null },
+    // Resolved server-side at ingestion (socket/handlers.js) by joining
+    // `element`/`coordinates` against Board.elements, or trusted directly
+    // when the client already knows it (e.g. Participate's frame-per-step
+    // flow). Null when the event couldn't be attributed to any frame.
+    frameId: { type: String, default: null },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
 }, { _id: false });
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { api, ApiUser, setToken, getToken, clearToken, ApiError } from '../lib/api';
+import { api, ApiUser, setToken, getToken, clearToken } from '../lib/api';
 import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
 
 interface AuthContextType {
@@ -7,8 +7,7 @@ interface AuthContextType {
     token: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: (email: string, password: string) => Promise<void>;
-    register: (email: string, password: string, name: string) => Promise<void>;
+    /** Clears the local access token. A fresh one is provisioned automatically on next load. */
     logout: () => void;
     refreshUser: () => Promise<void>;
 }
@@ -27,6 +26,13 @@ interface AuthProviderProps {
     children: ReactNode;
 }
 
+const DASHBOARD_PATH_RE = /^\/dashboard\/([a-f0-9]{48})\/?$/;
+
+/** Routes that manage their own identity and never need an owner session. */
+function isStandaloneRoute(pathname: string): boolean {
+    return pathname === '/miro-panel' || pathname === '/participate';
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<ApiUser | null>(null);
     const [token, setTokenState] = useState<string | null>(getToken());
@@ -34,70 +40,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const isAuthenticated = !!user && !!token;
 
-    // Restore session on mount
+    const applySession = useCallback((newToken: string, newUser: ApiUser) => {
+        setToken(newToken);
+        setTokenState(newToken);
+        setUser(newUser);
+        if (!getSocket().connected) {
+            connectSocket();
+        }
+        if (!isStandaloneRoute(window.location.pathname)) {
+            window.history.replaceState({}, '', `/dashboard/${newToken}`);
+        }
+    }, []);
+
+    const startSession = useCallback(async () => {
+        const data = await api.post<{ token: string; user: ApiUser }>('/api/auth/start');
+        applySession(data.token, data.user);
+    }, [applySession]);
+
+    // Provision or restore an owner session — no login screen, no form.
+    // A token can arrive from the URL (a shared/bookmarked dashboard link),
+    // localStorage (returning on the same browser), or neither (first-ever
+    // visit), in which case one is silently created.
     useEffect(() => {
-        const restore = async () => {
-            const savedToken = getToken();
-            if (!savedToken) {
+        const resolveSession = async () => {
+            if (isStandaloneRoute(window.location.pathname)) {
                 setIsLoading(false);
                 return;
             }
-            try {
-                const data = await api.get<{ user: ApiUser }>('/api/auth/me');
-                setUser(data.user);
-                setTokenState(savedToken);
-                if (!getSocket().connected) {
-                    connectSocket();
+
+            const urlMatch = window.location.pathname.match(DASHBOARD_PATH_RE);
+            const candidateToken = urlMatch?.[1] || getToken();
+
+            if (candidateToken) {
+                try {
+                    setToken(candidateToken);
+                    const data = await api.get<{ user: ApiUser }>('/api/auth/me');
+                    applySession(candidateToken, data.user);
+                    setIsLoading(false);
+                    return;
+                } catch {
+                    // Link is invalid/expired — fall through and provision a fresh one.
+                    clearToken();
                 }
+            }
+
+            try {
+                await startSession();
             } catch {
-                // Token invalid or backend unreachable
-                clearToken();
-                setTokenState(null);
-                setUser(null);
+                // Backend unreachable — leave unauthenticated rather than loop.
             } finally {
                 setIsLoading(false);
             }
         };
-        restore();
+        resolveSession();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Listen for auth expiration events from the API client
+    // Listen for auth expiration events from the API client — re-provision
+    // silently rather than surfacing a login screen that doesn't exist.
     useEffect(() => {
         const handleExpired = () => {
             setUser(null);
             setTokenState(null);
             disconnectSocket();
+            startSession().catch(() => { /* leave unauthenticated */ });
         };
         window.addEventListener('beacon:auth-expired', handleExpired);
         return () => window.removeEventListener('beacon:auth-expired', handleExpired);
-    }, []);
-
-    const login = useCallback(async (email: string, password: string) => {
-        const data = await api.post<{ token: string; user: ApiUser }>('/api/auth/login', {
-            email,
-            password,
-        });
-        setToken(data.token);
-        setTokenState(data.token);
-        setUser(data.user);
-        if (!getSocket().connected) {
-            connectSocket();
-        }
-    }, []);
-
-    const register = useCallback(async (email: string, password: string, name: string) => {
-        const data = await api.post<{ token: string; user: ApiUser }>('/api/auth/register', {
-            email,
-            password,
-            name,
-        });
-        setToken(data.token);
-        setTokenState(data.token);
-        setUser(data.user);
-        if (!getSocket().connected) {
-            connectSocket();
-        }
-    }, []);
+    }, [startSession]);
 
     const logout = useCallback(() => {
         clearToken();
@@ -105,7 +115,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setTokenState(null);
         setUser(null);
         disconnectSocket();
-    }, []);
+        startSession().catch(() => { /* leave unauthenticated */ });
+    }, [startSession]);
 
     const refreshUser = useCallback(async () => {
         try {
@@ -123,8 +134,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 token,
                 isAuthenticated,
                 isLoading,
-                login,
-                register,
                 logout,
                 refreshUser,
             }}

@@ -6,6 +6,9 @@ const elementSchema = new mongoose.Schema({
         type: String,
         enum: ['frame', 'sticky', 'shape', 'text'],
     },
+    // The containing frame's Miro item ID, if this element sits inside one.
+    // Comes straight from Miro API v2's `parent.id` on the item — not computed.
+    parentFrameId: { type: String, default: null },
     bounds: {
         x: Number,
         y: Number,

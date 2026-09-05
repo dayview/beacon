@@ -10,6 +10,7 @@ import {
     computeComparisonMetrics,
     batchSessionCounts
 } from '../services/comparisonService.js';
+import { generateSectionInsights } from '../services/sectionInsightsService.js';
 
 const router = Router();
 
@@ -122,6 +123,26 @@ router.get(
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Dwell time error:`, error);
             res.status(500).json({ error: 'Failed to compute dwell times.' });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/sections ──────────────────────
+// Per-frame ("section") reach/dwell/backtrack rollup with a
+// confidence-scored, explained skipped/skimmed/confusion/interest outcome.
+router.get(
+    '/:testId/sections',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const insights = await generateSectionInsights(req.params.testId);
+            res.json(insights);
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Section insights error:`, error);
+            res.status(500).json({ error: 'Failed to compute section insights.' });
         }
     }
 );

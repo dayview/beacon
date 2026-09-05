@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Toaster, toast } from "sonner";
 import "../styles/fonts.css";
-import { Login } from "../screens/Login";
 import { Dashboard } from "../screens/Dashboard";
 import { LiveAnalytics } from "../screens/LiveAnalytics";
 import { Comparison } from "../screens/Comparison";
@@ -37,11 +36,13 @@ function AppContent() {
     if (miroConnected) {
       refreshUser();
       toast.success('Miro connected successfully!');
-      window.history.replaceState({}, '', '/');
+      // Strip only the query string — preserve /dashboard/:token if that's
+      // the current path, rather than bouncing back to '/'.
+      window.history.replaceState({}, '', window.location.pathname);
       setCurrentScreen('boards');
     } else if (miroError) {
       toast.error('Failed to connect Miro. Please try again.');
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', window.location.pathname);
       setCurrentScreen('boards');
     }
   }, [refreshUser]);
@@ -103,10 +104,22 @@ function AppContent() {
     );
   }
 
+  // Only reachable if the backend was unavailable when a session was being
+  // provisioned — there's no login screen to fall back to, just retry.
   if (!isAuthenticated) {
     return (
       <>
-        <Login />
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#050038] via-[#0a0050] to-[#1a0080] text-center">
+          <div>
+            <p className="text-sm text-white/60">Couldn't reach Beacon. Check your connection and try again.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-md bg-[#ffd02f] px-4 py-2 text-sm font-medium text-[#050038]"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
         <Toaster position="top-center" richColors />
       </>
     );

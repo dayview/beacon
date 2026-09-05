@@ -5,7 +5,6 @@ import auth from '../middleware/auth.js';
 import { predictBehavior } from '../services/aiService.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
 import { authorizeTestOwner } from '../middleware/authorize.js';
-import { checkAIQuota } from '../middleware/planLimits.js';
 
 const router = Router();
 
@@ -16,7 +15,6 @@ router.post(
     objectIdParam('testId'),
     validate,
     authorizeTestOwner('testId'),
-    checkAIQuota,
     async (req, res) => {
         try {
             const { predictions, summary } = await predictBehavior(req.test, req.user);

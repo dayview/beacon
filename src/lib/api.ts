@@ -1,5 +1,6 @@
 /**
- * Beacon API client — typed HTTP wrapper with JWT auth.
+ * Beacon API client — typed HTTP wrapper. Auth is a single opaque access
+ * token (no accounts, no passwords) — see AuthContext for how it's obtained.
  */
 /// <reference types="vite/client" />
 
@@ -45,11 +46,11 @@ async function request<T>(
 
     const data = await response.json().catch(() => ({}));
 
-    // Handle 401 — token expired or invalid
-    if (response.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/register')) {
+    // Handle 401 — access token invalid (never happens for /auth/start, which needs no token)
+    if (response.status === 401 && !url.includes('/auth/start')) {
         clearToken();
         window.dispatchEvent(new CustomEvent('beacon:auth-expired'));
-        throw new ApiError('Session expired. Please log in again.', 401);
+        throw new ApiError('Your access link is no longer valid.', 401);
     }
 
     if (!response.ok) {
@@ -143,14 +144,9 @@ export const api = {
 
 export interface ApiUser {
     id: string;
-    email: string;
-    name: string;
-    role: string;
     workspace: string | null;
     plan: {
-        tier: 'free' | 'pro' | 'enterprise';
         aiProvider: string | null;
-        recordingEnabled: boolean;
         hasAiKey: boolean;
     };
     hasMiroConnected: boolean;

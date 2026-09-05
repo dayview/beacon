@@ -4,7 +4,6 @@ import { useTests, Test } from "../contexts/TestContext";
 import { EditTestModal } from "../components/EditTestModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
 import { UserProfileModal } from "../components/UserProfileModal";
-import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
 interface DashboardProps {
@@ -14,7 +13,6 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest, onSignOut }) => {
-  const { user } = useAuth();
   const { tests, selectTest, updateTest, deleteTest, changeTestStatus } = useTests();
   const [editingTest, setEditingTest] = useState<Test | null>(null);
   const [deletingTest, setDeletingTest] = useState<Test | null>(null);
@@ -114,7 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
             className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors"
           >
             <span className="text-sm font-bold text-[#4262ff]">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              B
             </span>
           </button>
         </div>

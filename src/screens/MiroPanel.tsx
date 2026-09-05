@@ -71,35 +71,26 @@ export const MiroPanel: React.FC = () => {
     }, [boardId]);
 
     // 3. Miro SDK event tracking — selection changes (clicks)
+    // Coordinates are sent as absolute Miro board position (item.x/item.y),
+    // not percent-of-current-viewport — the latter shifts with every pan/zoom
+    // and makes events from different sessions impossible to aggregate
+    // against the same physical spot on the board. `element` carries the
+    // real Miro item ID so the backend can join it against Board.elements.
     useEffect(() => {
-        const handler = async () => {
+        const handler = async (event: { items: Array<{ id: string; type: string; x: number; y: number }> }) => {
             if (!sessionIdRef.current || !socketRef.current || !isConnected) return;
+            if (!event.items || event.items.length === 0) return;
 
-            try {
-                const selection = await miro.board.getSelection();
-                if (!selection || selection.length === 0) return;
+            const item = event.items[0];
 
-                const item = selection[0];
-                const viewport = await miro.board.viewport.get();
-
-                const xPercent = viewport.width
-                    ? ((item.x - viewport.x) / viewport.width) * 100
-                    : 0;
-                const yPercent = viewport.height
-                    ? ((item.y - viewport.y) / viewport.height) * 100
-                    : 0;
-
-                socketRef.current.emit('session:event', {
-                    sessionId: sessionIdRef.current,
-                    type: 'click',
-                    coordinates: { x: xPercent, y: yPercent },
-                    timestamp: Date.now(),
-                    element: 'miro_sdk',
-                    metadata: {},
-                });
-            } catch (err) {
-                console.error('[MiroPanel] selection tracking error:', err);
-            }
+            socketRef.current.emit('session:event', {
+                sessionId: sessionIdRef.current,
+                type: 'click',
+                coordinates: { x: item.x, y: item.y },
+                timestamp: Date.now(),
+                element: item.id,
+                metadata: { itemType: item.type },
+            });
         };
 
         miro.board.ui.on('selection:update', handler);
@@ -108,35 +99,27 @@ export const MiroPanel: React.FC = () => {
         };
     }, [isConnected]);
 
-    // 4. Miro SDK event tracking — cursor position (mousemove)
+    // 4. Miro SDK event tracking — cursor position (hover)
+    // `experimental:cursor_position_changed` reports {x, y} already in the
+    // same absolute board coordinate space as viewport.get()'s bounds (the
+    // existing code's own percent-of-viewport math relied on that), so it
+    // can be sent directly with no viewport lookup needed.
     useEffect(() => {
-        const handler = async (event: { x: number; y: number }) => {
+        const handler = (event: { x: number; y: number }) => {
             const now = Date.now();
             if (now - lastCursorRef.current < 100) return;
             lastCursorRef.current = now;
 
             if (!sessionIdRef.current || !socketRef.current || !isConnected) return;
 
-            try {
-                const viewport = await miro.board.viewport.get();
-                const xPercent = viewport.width
-                    ? ((event.x - viewport.x) / viewport.width) * 100
-                    : 0;
-                const yPercent = viewport.height
-                    ? ((event.y - viewport.y) / viewport.height) * 100
-                    : 0;
-
-                socketRef.current.emit('session:event', {
-                    sessionId: sessionIdRef.current,
-                    type: 'mousemove',
-                    coordinates: { x: xPercent, y: yPercent },
-                    timestamp: Date.now(),
-                    element: 'miro_sdk',
-                    metadata: {},
-                });
-            } catch (err) {
-                console.error('[MiroPanel] cursor tracking error:', err);
-            }
+            socketRef.current.emit('session:event', {
+                sessionId: sessionIdRef.current,
+                type: 'hover',
+                coordinates: { x: event.x, y: event.y },
+                timestamp: Date.now(),
+                element: null,
+                metadata: {},
+            });
         };
 
         miro.board.ui.on('experimental:cursor_position_changed', handler);

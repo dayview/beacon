@@ -30,7 +30,7 @@ There is no lint script or ESLint config in this repo, and no `tsconfig.json` �
 - `npm run dev` — start with `node --watch` (auto-reload)
 - `npm start` — production start
 - `npm run build` — **not a backend build**; it `cd ..`s and runs the *root* frontend build. The backend has no compile step of its own (plain ESM JS).
-- Copy `beacon-backend/.env.example` to `.env` and fill in `MONGODB_URI`, `JWT_SECRET`, `ENCRYPTION_KEY` (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), Miro OAuth creds, and `BEACON_OPENAI_KEY`. `PORT` defaults to `3001` — this must stay in sync with the frontend's Vite proxy target in `vite.config.ts` and with `VITE_API_URL` in the root `.env.example` if that's set.
+- Copy `beacon-backend/.env.example` to `.env` and fill in `MONGODB_URI`, `ENCRYPTION_KEY` (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), Miro OAuth creds, and `BEACON_OPENAI_KEY`. `PORT` defaults to `3001` — this must stay in sync with the frontend's Vite proxy target in `vite.config.ts` and with `VITE_API_URL` in the root `.env.example` if that's set. There is no `JWT_SECRET` — see Architecture below, auth isn't JWT-based.
 - In production the backend serves the frontend's `dist/` as static files with an SPA fallback (`beacon-backend/src/server.js`) — there is no separate frontend host.
 
 There are no automated test suites in either app currently.
@@ -38,14 +38,15 @@ There are no automated test suites in either app currently.
 ## Architecture
 
 ### Frontend structure
-- `src/app/App.tsx` — root component and hand-rolled screen router (a `currentScreen` string, not a routing library, despite `react-router` being a dependency). One exception: **`/miro-panel` renders `MiroPanel` before any auth check** — it's the panel Miro opens inside the board iframe, and must work even when the researcher isn't logged into the main app session.
+- **No accounts, no login screen.** `AuthContext` silently provisions an anonymous owner (`POST /api/auth/start`, no email/password) the first time the app loads with no valid access token, then rewrites the URL to `/dashboard/:accessToken` — that private, unguessable link *is* the credential, bookmarkable/shareable in place of a login. There's no `Login` screen; `App.tsx` only ever shows a "couldn't reach Beacon, retry" state if the backend is unreachable while a session is being provisioned.
+- `src/app/App.tsx` — root component and hand-rolled screen router (a `currentScreen` string, not a routing library, despite `react-router` being a dependency). One exception: **`/miro-panel` and `/participate` render before `AuthProvider` does anything** — `AuthContext` explicitly skips session provisioning on those paths (see `isStandaloneRoute`), since the Miro-embedded panel and the public participant link manage their own identity (or none at all) and don't need an owner session.
 - `src/app/components/ui/` — shadcn/Radix-based primitives (generated, don't hand-edit patterns here beyond what's needed).
 - `src/components/` — Beacon-specific shared components (modals, heatmap canvas, etc.), plus a separate lightweight `src/components/ui/` (custom Button/Card/Badge/Input/Modal — distinct from `app/components/ui/`).
-- `src/screens/` — top-level views wired up in `App.tsx` (`Dashboard`, `LiveAnalytics`, `Comparison`, `Boards`, `BoardCanvas`, `Settings`, `Participate`, `MiroPanel`, `Login`, `Templates`).
-- `src/contexts/` — `AuthContext` (JWT session, auto-connects the socket on login/restore) and `TestContext` (test CRUD state).
-- `src/lib/api.ts` — typed `fetch` wrapper (`api.get/post/patch/delete` + named methods), stores JWT in `localStorage` under `beacon-token`, dispatches a `beacon:auth-expired` window event on 401 that `AuthContext` listens for.
-- `src/lib/socket.ts` — Socket.io client singleton; reads the JWT from `api.ts`'s token store for the handshake.
-- `src/lib/useInteractionCapture.ts` — attaches click/mousemove/scroll listeners to a container, throttles + batches, and emits `session:event` over the socket. This is what drives heatmap data collection.
+- `src/screens/` — top-level views wired up in `App.tsx` (`Dashboard`, `LiveAnalytics`, `Comparison`, `Boards`, `BoardCanvas`, `Settings`, `Participate`, `MiroPanel`, `Templates`).
+- `src/contexts/` — `AuthContext` (anonymous access-token session, described above) and `TestContext` (test CRUD state).
+- `src/lib/api.ts` — typed `fetch` wrapper (`api.get/post/patch/delete` + named methods), stores the access token in `localStorage` under `beacon-token`, dispatches a `beacon:auth-expired` window event on 401 that `AuthContext` listens for (it silently re-provisions a fresh session rather than redirecting anywhere).
+- `src/lib/socket.ts` — Socket.io client singleton; reads the access token from `api.ts`'s token store for the handshake.
+- Interaction capture is split by surface, not a single shared hook: `MiroPanel.tsx` streams real Miro SDK selection/cursor events directly; `Participate.tsx` is a frame-per-step walkthrough (see `Test.tasks[].targetElement`) that emits per-step dwell/backtrack `task_complete` events rather than raw clicks, because Miro's live-embed iframe is cross-origin and can't be observed for real pointer events.
 - Path alias `@` → `src/` (see `vite.config.ts`).
 
 ### Miro SDK integration
@@ -53,11 +54,11 @@ The app runs both as a standalone web app and embedded inside a Miro board. Miro
 
 ### Backend structure
 Standard layered Express app: `routes/` (HTTP handlers) → `services/` (business logic) → `models/` (Mongoose schemas). Notable pieces:
-- `middleware/auth.js` — JWT bearer auth, attaches `req.user`; `requireRole()` for role gating.
-- `middleware/planLimits.js` — enforces free/pro/enterprise quotas (AI insights/month, sessions/test, recording) defined in `PLAN_LIMITS`.
-- `services/encryptionService.js` — AES-256-CBC encrypt/decrypt for user-supplied AI provider API keys (requires `ENCRYPTION_KEY`); used because users bring their own key (`services/aiService.js` supports OpenAI, OpenRouter, Anthropic, etc. as swappable providers).
-- `services/heatmapService.js`, `confusionService.js`, `flowService.js`, `comparisonService.js` — analytics computed from stored session events (dwell time, confusion zones, navigation flow, cross-test comparison).
-- `socket/handlers.js` + `socket/events.js` — Socket.io wiring. JWT auth on handshake but **anonymous connections are allowed** (participants may not be logged-in users). Researchers join a `test:{id}` room (`researcher:join`) to watch live; participants stream events via `session:event`.
+- **`models/User.js` is an anonymous owner, not an account** — no email, no password. Its only credential is `accessToken` (random, generated on creation), which is also embedded directly in the frontend's `/dashboard/:accessToken` URL. There is no privileged role anymore (`requireRole`/`role` were removed with the login screen) and no plan-tier gating (`middleware/planLimits.js` was removed — everyone gets the same limits, i.e. none).
+- `middleware/auth.js` — bearer-token auth: looks the token up directly against `User.accessToken` (no signing/verification step, no expiry) and attaches the doc to `req.user`. Also accepts `?token=` for contexts that can't set headers (an `<img src>`, an OAuth redirect's `state` param).
+- `services/encryptionService.js` — AES-256-CBC encrypt/decrypt for user-supplied AI provider API keys (requires `ENCRYPTION_KEY`); used because users bring their own key (`services/aiService.js` supports OpenAI, OpenRouter, Anthropic, etc. as swappable providers, falling back to the pooled `BEACON_OPENAI_KEY` when a user hasn't set one).
+- `services/heatmapService.js`, `confusionService.js`, `flowService.js`, `comparisonService.js` — analytics computed from stored session events (dwell time, confusion zones, navigation flow, cross-test comparison). `services/sectionInsightsService.js` adds per-frame ("section") reach/dwell/backtrack analysis with a confidence-scored, explained outcome — see its module docstring for the reasoning behind never asserting "confusion" from dwell time alone.
+- `socket/handlers.js` + `socket/events.js` — Socket.io wiring. Handshake auth looks up the same `accessToken` scheme as REST, but **anonymous connections are allowed** (most participants have no owner session at all). Researchers join a `test:{id}` room (`researcher:join`) to watch live; participants stream events via `session:event`, which server-side resolves/attaches a `frameId` by joining against the synced `Board.elements` (see `resolveFrameId` in `handlers.js`).
 - CORS/CSP in `server.js` is intentionally scoped to allow embedding under `https://*.miro.com` (`frame-src`, `frame-ancestors`) — keep that in mind when touching security headers.
 
-Full REST endpoint list and WebSocket event names are documented in `beacon-backend/README.md`.
+Full REST endpoint list and WebSocket event names are documented in `beacon-backend/README.md` — note it likely still describes the old JWT/register/login flow and plan-tier limits; treat this file as the source of truth over that README until it's updated to match.

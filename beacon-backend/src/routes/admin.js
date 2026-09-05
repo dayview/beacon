@@ -8,11 +8,10 @@ import AIInsight from '../models/AIInsight.js';
 const router = Router();
 
 // ── DELETE /api/admin/reset-test-data ────────────────────────
+// No privileged role to gate this behind anymore — scoped to isTestData
+// records only (seeded/demo data), never real participant data, so it's
+// safe to leave reachable by anyone holding a valid access token.
 router.delete('/reset-test-data', auth, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin role required.' });
-    }
-
     try {
         console.log(`[${new Date().toISOString()}] Admin reset-test-data initiated by user ${req.user._id}`);
 

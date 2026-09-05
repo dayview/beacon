@@ -88,7 +88,7 @@ export const Boards: React.FC<BoardsProps> = ({ onNavigate, onOpenBoard, onSignO
         <div className="flex items-center gap-4">
           <button onClick={() => setIsProfileOpen(true)} className="h-8 w-8 rounded-full bg-[#4262ff]/10 flex items-center justify-center border border-[#050038]/10 cursor-pointer hover:border-[#4262ff] transition-colors">
             <span className="text-sm font-bold text-[#4262ff]">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              B
             </span>
           </button>
         </div>

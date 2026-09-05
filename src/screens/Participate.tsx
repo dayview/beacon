@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
-import { useInteractionCapture } from '../lib/useInteractionCapture';
+import { connectSocket, disconnectSocket, getSocket, emitSessionEvent } from '../lib/socket';
 import { Button } from '../components/ui/Button';
+
+interface Step {
+    id: string;
+    description: string;
+    targetElement: string;
+}
 
 export const Participate: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [boardUrl, setBoardUrl] = useState<string | null>(null);
     const [isDone, setIsDone] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
     const [startWidgetId, setStartWidgetId] = useState<string | null>(null);
+    const [steps, setSteps] = useState<Step[]>([]);
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
-    const [isTracking, setIsTracking] = useState(true);
+    const stepStartedAtRef = useRef<number>(Date.now());
 
     const testId = new URLSearchParams(window.location.search).get('testId');
 
@@ -37,7 +43,7 @@ export const Participate: React.FC = () => {
 
         const socket = getSocket();
 
-        const handleCreated = ({ sessionId, boardId, startWidgetId }: { sessionId: string, boardId?: string, startWidgetId?: string }) => {
+        const handleCreated = ({ sessionId, boardId, startWidgetId, steps }: { sessionId: string, boardId?: string, startWidgetId?: string, steps?: Step[] }) => {
             setSessionId(sessionId);
             if (boardId) {
                 setBoardUrl(boardId);
@@ -45,6 +51,8 @@ export const Participate: React.FC = () => {
             if (startWidgetId) {
                 setStartWidgetId(startWidgetId);
             }
+            setSteps(steps || []);
+            stepStartedAtRef.current = Date.now();
         };
 
         const joinSession = () => {
@@ -69,20 +77,42 @@ export const Participate: React.FC = () => {
         };
     }, [testId]);
 
-    useInteractionCapture({
-        containerRef,
-        enabled: !!sessionId && !isDone && isTracking,
-        sessionId: sessionId || '',
-        moveThrottleMs: 100,
-        batchSize: 20,
-        flushIntervalMs: 2000,
-    });
-
     const handleDone = () => {
         if (sessionId) {
             getSocket().emit('session:complete', { sessionId });
         }
         setIsDone(true);
+    };
+
+    // Advance (or step back) through the frame-per-step walkthrough. Dwell
+    // time on the step just left, plus which direction the participant
+    // moved, is the real signal here — Miro's live-embed gives no way to
+    // observe clicks inside the cross-origin iframe, so per-step time +
+    // backtracking stands in for raw interaction capture.
+    const goToStep = (nextIndex: number, direction: 'forward' | 'backward') => {
+        const currentStep = steps[currentStepIndex];
+        if (sessionId && currentStep) {
+            emitSessionEvent({
+                sessionId,
+                type: 'task_complete',
+                coordinates: { x: 0, y: 0 },
+                element: currentStep.targetElement,
+                frameId: currentStep.targetElement,
+                metadata: {
+                    taskId: currentStep.id,
+                    dwellMs: Date.now() - stepStartedAtRef.current,
+                    direction,
+                },
+            });
+        }
+
+        if (nextIndex >= steps.length) {
+            handleDone();
+            return;
+        }
+
+        setCurrentStepIndex(nextIndex);
+        stepStartedAtRef.current = Date.now();
     };
 
     if (!testId) {
@@ -93,37 +123,45 @@ export const Participate: React.FC = () => {
         );
     }
 
+    const hasSteps = steps.length > 0;
+    const currentStep = hasSteps ? steps[currentStepIndex] : null;
+    const currentWidgetId = currentStep?.targetElement || startWidgetId;
+    const isLastStep = hasSteps && currentStepIndex === steps.length - 1;
+
     return (
         <div className="flex h-screen flex-col bg-[#fafafa]">
             <div className="flex h-14 items-center justify-between bg-white px-6 border-b border-[#050038]/10">
-                <span className="p-medium text-[#050038]">You are participating in a test</span>
-                <div className="flex items-center gap-4">
-                    {!isDone && (
-                        <div className="flex bg-slate-100 p-1 rounded-lg">
-                            <button
-                                className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium ${isTracking ? 'bg-white shadow-sm text-[#050038]' : 'text-[#050038]/60 hover:text-[#050038]'}`}
-                                onClick={() => setIsTracking(true)}
+                <span className="p-medium text-[#050038]">
+                    {currentStep ? currentStep.description : 'You are participating in a test'}
+                </span>
+                <div className="flex items-center gap-2">
+                    {!isDone && hasSteps && (
+                        <>
+                            <Button
+                                variant="secondary"
+                                onClick={() => goToStep(currentStepIndex - 1, 'backward')}
+                                disabled={currentStepIndex === 0}
                             >
-                                Track Heatmap
-                            </button>
-                            <button
-                                className={`px-4 py-1.5 text-sm rounded-md transition-all font-medium ${!isTracking ? 'bg-white shadow-sm text-[#050038]' : 'text-[#050038]/60 hover:text-[#050038]'}`}
-                                onClick={() => setIsTracking(false)}
+                                Back
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={() => goToStep(currentStepIndex + 1, 'forward')}
                             >
-                                Interact
-                            </button>
-                        </div>
+                                {isLastStep ? 'Finish' : 'Next'}
+                            </Button>
+                        </>
                     )}
-                    {!isDone && (
+                    {!isDone && !hasSteps && (
                         <Button variant="primary" onClick={handleDone}>
                             Done
                         </Button>
                     )}
                 </div>
             </div>
-            {isTracking && !isDone && (
+            {hasSteps && !isDone && (
                 <div className="bg-[#ffd02f] text-[#050038] text-center text-xs py-1.5 font-medium">
-                    Heatmap tracking is active. You cannot interact with the Miro board. Switch to "Interact" mode to explore the board.
+                    Step {currentStepIndex + 1} of {steps.length} — explore this section, then continue.
                 </div>
             )}
             <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-[#eaeaea]" ref={wrapperRef}>
@@ -133,7 +171,6 @@ export const Participate: React.FC = () => {
                     </div>
                 ) : boardUrl ? (
                     <div
-                        ref={containerRef}
                         className="relative bg-white shadow-xl ring-1 ring-black/5 flex-shrink-0 origin-center"
                         style={{
                             width: 1200,
@@ -143,17 +180,13 @@ export const Participate: React.FC = () => {
                         }}
                     >
                         <iframe
-                            src={`https://miro.com/app/live-embed/${boardUrl}/?embedAutoplay=true${startWidgetId ? `&moveToWidget=${startWidgetId}` : ''}`}
+                            key={currentWidgetId || 'default'}
+                            src={`https://miro.com/app/live-embed/${boardUrl}/?autoplay=true${currentWidgetId ? `&moveToWidget=${currentWidgetId}` : ''}`}
                             width="100%"
                             height="100%"
                             style={{ border: 'none' }}
                             title="Miro Board"
                         />
-                        {/* The transparent overlay is required to capture pointer events over a cross-origin iframe.
-                            We toggle it based on the isTracking state allowing users to switch between interaction and tracking. */}
-                        {isTracking && (
-                            <div className="absolute inset-0 z-10" style={{ pointerEvents: 'all', background: 'transparent' }} />
-                        )}
                     </div>
                 ) : (
                     <div className="flex h-full w-full items-center justify-center p-large text-[#050038]">
@@ -164,4 +197,3 @@ export const Participate: React.FC = () => {
         </div>
     );
 };
-
