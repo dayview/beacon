@@ -1,25 +1,48 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { Toaster, toast } from "sonner";
 import "../styles/fonts.css";
-import { Dashboard } from "../screens/Dashboard";
-import { LiveAnalytics } from "../screens/LiveAnalytics";
-import { Comparison } from "../screens/Comparison";
-import { Boards } from "../screens/Boards";
-import { BoardCanvas } from "../screens/BoardCanvas";
-import { Settings } from "../screens/Settings";
-import { Participate } from "../screens/Participate";
-import { MiroPanel } from "../screens/MiroPanel";
-import { Templates } from "../screens/Templates";
 import { TestSetupModal } from "../components/TestSetupModal";
 import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 
+// Each screen is its own chunk, loaded on first navigation to it rather than
+// bundled into the initial load — only one is ever mounted at a time (see
+// the currentScreen conditionals below), so there's nothing to gain from
+// bundling them all together up front.
+const Dashboard = lazy(() => import("../screens/Dashboard").then((m) => ({ default: m.Dashboard })));
+const LiveAnalytics = lazy(() => import("../screens/LiveAnalytics").then((m) => ({ default: m.LiveAnalytics })));
+const Comparison = lazy(() => import("../screens/Comparison").then((m) => ({ default: m.Comparison })));
+const Boards = lazy(() => import("../screens/Boards").then((m) => ({ default: m.Boards })));
+const BoardCanvas = lazy(() => import("../screens/BoardCanvas").then((m) => ({ default: m.BoardCanvas })));
+const Settings = lazy(() => import("../screens/Settings").then((m) => ({ default: m.Settings })));
+const Participate = lazy(() => import("../screens/Participate").then((m) => ({ default: m.Participate })));
+const MiroPanel = lazy(() => import("../screens/MiroPanel").then((m) => ({ default: m.MiroPanel })));
+const Templates = lazy(() => import("../screens/Templates").then((m) => ({ default: m.Templates })));
+
 type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate";
+
+function AppLoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#050038] via-[#0a0050] to-[#1a0080]">
+      <div className="text-center">
+        <svg className="mx-auto h-8 w-8 animate-spin text-[#ffd02f]" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <p className="mt-4 text-sm text-white/60">Loading Beacon...</p>
+      </div>
+    </div>
+  );
+}
 
 function AppContent() {
   // Miro Web SDK panel — must render before any auth checks
   if (window.location.pathname === '/miro-panel') {
-    return <MiroPanel />;
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        <MiroPanel />
+      </Suspense>
+    );
   }
 
   const { isAuthenticated, isLoading, logout, refreshUser } = useAuth();
@@ -87,22 +110,16 @@ function AppContent() {
   };
 
   if (currentScreen === 'participate') {
-    return <Participate />;
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        <Participate />
+      </Suspense>
+    );
   }
 
   // Show loading spinner while checking auth
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#050038] via-[#0a0050] to-[#1a0080]">
-        <div className="text-center">
-          <svg className="mx-auto h-8 w-8 animate-spin text-[#ffd02f]" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <p className="mt-4 text-sm text-white/60">Loading Beacon...</p>
-        </div>
-      </div>
-    );
+    return <AppLoadingFallback />;
   }
 
   // Only reachable if the backend was unavailable when a session was being
@@ -129,45 +146,47 @@ function AppContent() {
   return (
     <>
       <div className="min-h-screen font-sans text-[#050038] bg-[#fafafa] antialiased">
-        {currentScreen === "boards" && (
-          <Boards onNavigate={handleNavigate} onOpenBoard={(id: string, name: string) => { handleOpenBoard(id, name); }} onSignOut={handleSignOut} />
-        )}
+        <Suspense fallback={<AppLoadingFallback />}>
+          {currentScreen === "boards" && (
+            <Boards onNavigate={handleNavigate} onOpenBoard={(id: string, name: string) => { handleOpenBoard(id, name); }} onSignOut={handleSignOut} />
+          )}
 
-        {currentScreen === "board-canvas" && (
-          <BoardCanvas
-            boardName={activeBoardName}
-            boardId={activeBoardId}
-            testId={activeTestId}
-            onBack={() => setCurrentScreen("boards")}
-          />
-        )}
+          {currentScreen === "board-canvas" && (
+            <BoardCanvas
+              boardName={activeBoardName}
+              boardId={activeBoardId}
+              testId={activeTestId}
+              onBack={() => setCurrentScreen("boards")}
+            />
+          )}
 
-        {currentScreen === "templates" && (
-          <Templates onNavigate={handleNavigate} onSignOut={handleSignOut} />
-        )}
+          {currentScreen === "templates" && (
+            <Templates onNavigate={handleNavigate} onSignOut={handleSignOut} />
+          )}
 
-        {currentScreen === "dashboard" && (
-          <Dashboard
-            onNavigate={handleNavigate}
-            onOpenNewTest={() => setIsModalOpen(true)}
-            onSignOut={handleSignOut}
-          />
-        )}
+          {currentScreen === "dashboard" && (
+            <Dashboard
+              onNavigate={handleNavigate}
+              onOpenNewTest={() => setIsModalOpen(true)}
+              onSignOut={handleSignOut}
+            />
+          )}
 
-        {currentScreen === "analytics" && (
-          <LiveAnalytics
-            onBack={() => setCurrentScreen("dashboard")}
-            onNavigate={handleNavigate}
-          />
-        )}
+          {currentScreen === "analytics" && (
+            <LiveAnalytics
+              onBack={() => setCurrentScreen("dashboard")}
+              onNavigate={handleNavigate}
+            />
+          )}
 
-        {currentScreen === "comparison" && (
-          <Comparison onBack={() => setCurrentScreen("dashboard")} />
-        )}
+          {currentScreen === "comparison" && (
+            <Comparison onBack={() => setCurrentScreen("dashboard")} />
+          )}
 
-        {currentScreen === "settings" && (
-          <Settings onNavigate={handleNavigate} onSignOut={handleSignOut} />
-        )}
+          {currentScreen === "settings" && (
+            <Settings onNavigate={handleNavigate} onSignOut={handleSignOut} />
+          )}
+        </Suspense>
 
         <TestSetupModal
           isOpen={isModalOpen}
