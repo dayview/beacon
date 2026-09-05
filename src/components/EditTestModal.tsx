@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useId, useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Test } from '../contexts/TestContext';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface EditTestModalProps {
   isOpen: boolean;
@@ -32,19 +33,30 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({ isOpen, onClose, o
     onClose();
   };
 
+  const titleId = useId();
+  const containerRef = useModalA11y<HTMLDivElement>(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl focus:outline-none"
+      >
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute right-4 top-4 rounded-lg p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"
         >
           <X size={20} />
         </button>
 
-        <h2 className="text-2xl font-bold text-[#050038]">Edit Test</h2>
+        <h2 id={titleId} className="text-2xl font-bold text-[#050038]">Edit Test</h2>
         <p className="mt-2 text-sm text-[#050038]/60">Update test details</p>
 
         <div className="mt-6 space-y-4">

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;
@@ -9,13 +10,24 @@ interface DeleteConfirmModalProps {
 }
 
 export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, onClose, onConfirm, testName }) => {
+  const titleId = useId();
+  const containerRef = useModalA11y<HTMLDivElement>(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl focus:outline-none"
+      >
         <button
           onClick={onClose}
+          aria-label="Close"
           className="absolute right-4 top-4 rounded-lg p-1 text-[#050038]/60 hover:bg-[#fafafa] hover:text-[#050038]"
         >
           <X size={20} />
@@ -26,7 +38,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, 
             <AlertTriangle className="h-6 w-6 text-red-600" />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-[#050038]">Delete Test</h2>
+            <h2 id={titleId} className="text-xl font-bold text-[#050038]">Delete Test</h2>
             <p className="mt-2 text-sm text-[#050038]/60">
               Are you sure you want to delete <strong>"{testName}"</strong>? This action cannot be undone and all associated data will be lost.
             </p>

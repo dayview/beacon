@@ -723,7 +723,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               <div className="flex items-center gap-4 text-[#050038]/60">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="hover:text-[#050038]" title="Export data">
+                    <button className="hover:text-[#050038]" title="Export data" aria-label="Export data">
                       <Download size={20} />
                     </button>
                   </DropdownMenuTrigger>
@@ -737,10 +737,10 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                   </DropdownMenuContent>
                 </DropdownMenu>
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting') && (
-                  <button onClick={handlePauseTest} className="hover:text-[#050038]"><Pause size={20} /></button>
+                  <button onClick={handlePauseTest} aria-label="Pause test" className="hover:text-[#050038]"><Pause size={20} /></button>
                 )}
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting' || selectedTest.status === 'paused') && (
-                  <button onClick={handleStopTest} className="hover:text-[#050038] text-[#050038]"><Square size={20} fill="currentColor" /></button>
+                  <button onClick={handleStopTest} aria-label="Stop test" className="hover:text-[#050038] text-[#050038]"><Square size={20} fill="currentColor" /></button>
                 )}
               </div>
             </div>
@@ -1096,6 +1096,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                     </div>
                     <button
                       onClick={() => setShowPredictive(prev => !prev)}
+                      role="switch"
+                      aria-checked={showPredictive}
+                      aria-label="Toggle predictive heatmap"
                       className={cn(
                         "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
                         showPredictive ? "bg-gradient-to-r from-violet-500 to-fuchsia-500" : "bg-[#050038]/20"

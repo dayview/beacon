@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useId } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useModalA11y } from "../../lib/useModalA11y";
 
 interface ModalProps {
   isOpen: boolean;
@@ -19,6 +20,9 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   className,
 }) => {
+  const titleId = useId();
+  const containerRef = useModalA11y<HTMLDivElement>(isOpen, onClose);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -31,8 +35,15 @@ export const Modal: React.FC<ModalProps> = ({
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-[#050038]/60 backdrop-blur-[8px]"
             onClick={onClose}
+            aria-hidden="true"
           />
           <motion.div
+            ref={containerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : "Dialog"}
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -42,9 +53,10 @@ export const Modal: React.FC<ModalProps> = ({
             )}
           >
             <div className="flex items-center justify-between mb-6">
-              {title && <h2 className="text-2xl font-bold text-[#050038]">{title}</h2>}
+              {title && <h2 id={titleId} className="text-2xl font-bold text-[#050038]">{title}</h2>}
               <button
                 onClick={onClose}
+                aria-label="Close"
                 className="rounded-full p-1 text-[#050038]/40 hover:bg-[#fafafa] hover:text-[#050038] transition-colors"
               >
                 <X size={32} />

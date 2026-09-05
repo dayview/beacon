@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useId } from "react";
 import { Settings, RotateCcw, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
+import { useModalA11y } from "../lib/useModalA11y";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface UserProfileModalProps {
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, onNavigateSettings, onSignOut }) => {
   const { token, logout } = useAuth();
+  const titleId = useId();
+  const containerRef = useModalA11y<HTMLDivElement>(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -35,10 +38,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       <div
         className="fixed inset-0 bg-black/20 z-40"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
-      <div className="fixed top-20 right-8 z-50 w-80 rounded-xl bg-white shadow-xl border border-[#050038]/10">
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="fixed top-20 right-8 z-50 w-80 rounded-xl bg-white shadow-xl border border-[#050038]/10 focus:outline-none"
+      >
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
@@ -46,7 +57,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
               <span className="text-2xl font-bold text-[#4262ff]">B</span>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-[#050038]">Your workspace</h3>
+              <h3 id={titleId} className="font-semibold text-[#050038]">Your workspace</h3>
               <p className="text-sm text-[#050038]/60">No account needed</p>
             </div>
           </div>
