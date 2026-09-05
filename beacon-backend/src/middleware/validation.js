@@ -68,8 +68,4 @@ export const testQueryValidation = [
         .optional()
         .isIn(['draft', 'active', 'paused', 'completed'])
         .withMessage('Invalid status filter'),
-    query('workspace')
-        .optional()
-        .isMongoId()
-        .withMessage('Invalid workspace ID'),
 ];

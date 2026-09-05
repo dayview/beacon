@@ -12,10 +12,6 @@ const userSchema = new mongoose.Schema({
         required: true,
         default: () => crypto.randomBytes(24).toString('hex'),
     },
-    workspace: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Workspace',
-    },
     plan: {
         aiProvider: {
             type: String,
@@ -83,7 +79,6 @@ userSchema.methods.getMiroTokens = function () {
 userSchema.methods.toSafeObject = function () {
     return {
         id: this._id,
-        workspace: this.workspace,
         plan: {
             aiProvider: this.plan.aiProvider,
             hasAiKey: !!this.plan.aiApiKey,

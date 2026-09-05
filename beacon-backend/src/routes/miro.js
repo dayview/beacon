@@ -153,13 +153,6 @@ router.post('/sync/:boardId', auth, async (req, res) => {
 
         const board = await syncBoard(req.user, miroBoard);
 
-        if (req.user.workspace) {
-            const Workspace = (await import('../models/Workspace.js')).default;
-            await Workspace.findByIdAndUpdate(req.user.workspace, {
-                $addToSet: { boards: board._id },
-            });
-        }
-
         res.json({ board });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Miro sync error:`, error);

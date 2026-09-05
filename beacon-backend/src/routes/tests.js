@@ -74,15 +74,6 @@ router.get('/', auth, testQueryValidation, validate, async (req, res) => {
             filter.status = req.query.status;
         }
 
-        // If workspace filter provided, find boards in that workspace first
-        if (req.query.workspace) {
-            const Board = (await import('../models/Board.js')).default;
-            const boards = await Board.find({ workspace: req.query.workspace })
-                .select('_id')
-                .lean();
-            filter.board = { $in: boards.map((b) => b._id) };
-        }
-
         const tests = await Test.find(filter)
             .populate('board', 'name miroId thumbnailUrl')
             .sort({ createdAt: -1 });

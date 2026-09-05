@@ -20,7 +20,6 @@ import sessionRoutes from './routes/sessions.js';
 import aiRoutes from './routes/ai.js';
 import predictionsRouter from './routes/predictions.js';
 import analyticsRoutes from './routes/analytics.js';
-import workspaceRoutes from './routes/workspaces.js';
 import heatmapRoutes from './routes/heatmaps.js';
 import templateRoutes from './routes/templates.js';
 import adminRoutes from './routes/admin.js';
@@ -81,7 +80,6 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/ai', predictionsRouter);   // handles: POST|GET /predict/:testId
 app.use('/api/ai', aiRoutes);            // handles: POST /analyze/:testId, POST /analyze/session/:sessionId, GET /insights/:testId
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/heatmaps', heatmapRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/admin', adminRoutes);

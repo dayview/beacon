@@ -29,18 +29,11 @@ const boardSchema = new mongoose.Schema({
         required: [true, 'Board name is required'],
         trim: true,
     },
-    workspace: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Workspace',
-    },
     thumbnailUrl: { type: String, default: null },
     sharingPolicy: { type: String, default: null },
     elements: [elementSchema],
     lastSyncedAt: { type: Date, default: null },
 });
-
-// ── Indexes ──────────────────────────────────────────────────
-boardSchema.index({ workspace: 1 });
 
 const Board = mongoose.model('Board', boardSchema);
 export default Board;

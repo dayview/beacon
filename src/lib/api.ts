@@ -179,7 +179,6 @@ export const api = {
 
 export interface ApiUser {
     id: string;
-    workspace: string | null;
     plan: {
         aiProvider: string | null;
         hasAiKey: boolean;
