@@ -9,6 +9,7 @@ import { BoardCanvas } from "../screens/BoardCanvas";
 import { Settings } from "../screens/Settings";
 import { Participate } from "../screens/Participate";
 import { MiroPanel } from "../screens/MiroPanel";
+import { Templates } from "../screens/Templates";
 import { TestSetupModal } from "../components/TestSetupModal";
 import { TestProvider, useTests } from "../contexts/TestContext";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
@@ -141,11 +142,9 @@ function AppContent() {
           />
         )}
 
-        {/* Templates completely disabled for Review
         {currentScreen === "templates" && (
           <Templates onNavigate={handleNavigate} onSignOut={handleSignOut} />
         )}
-        */}
 
         {currentScreen === "dashboard" && (
           <Dashboard

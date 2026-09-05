@@ -78,27 +78,28 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ── PATCH /api/templates/:id ──────────────────────────────────
+// A template with createdBy === null is a system/shared template (part of
+// the default library) and stays editable by anyone; a user-created
+// template can only be edited by its creator.
 router.patch('/:id', auth, async (req, res) => {
     try {
-        const allowedFields = ['name', 'description', 'category', 'color', 'popular', 'miroBoardId', 'thumbnailUrl'];
-        const updates = {};
-        for (const field of allowedFields) {
-            if (req.body[field] !== undefined) {
-                updates[field] = req.body[field];
-            }
-        }
-
-        const template = await Template.findByIdAndUpdate(
-            req.params.id,
-            updates,
-            { new: true, runValidators: true }
-        );
-
-        if (!template) {
+        const existing = await Template.findById(req.params.id);
+        if (!existing) {
             return res.status(404).json({ error: 'Template not found.' });
         }
+        if (existing.createdBy && !existing.createdBy.equals(req.user._id)) {
+            return res.status(403).json({ error: 'You can only edit templates you created.' });
+        }
 
-        res.json({ template });
+        const allowedFields = ['name', 'description', 'category', 'color', 'popular', 'miroBoardId', 'thumbnailUrl'];
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                existing[field] = req.body[field];
+            }
+        }
+        await existing.save();
+
+        res.json({ template: existing });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Template update error:`, error);
         res.status(500).json({ error: 'Failed to update template.' });
@@ -108,10 +109,15 @@ router.patch('/:id', auth, async (req, res) => {
 // ── DELETE /api/templates/:id ─────────────────────────────────
 router.delete('/:id', auth, async (req, res) => {
     try {
-        const template = await Template.findByIdAndDelete(req.params.id);
-        if (!template) {
+        const existing = await Template.findById(req.params.id);
+        if (!existing) {
             return res.status(404).json({ error: 'Template not found.' });
         }
+        if (existing.createdBy && !existing.createdBy.equals(req.user._id)) {
+            return res.status(403).json({ error: 'You can only delete templates you created.' });
+        }
+
+        await existing.deleteOne();
         res.json({ success: true });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Template delete error:`, error);
