@@ -1,0 +1,5 @@
+node_modules
+dist
+.git
+beacon-backend/node_modules
+beacon-backend/dist
