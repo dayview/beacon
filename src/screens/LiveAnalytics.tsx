@@ -22,12 +22,19 @@ import {
   Loader2,
   CheckCircle,
   Clock,
-  Users
+  Users,
+  Download
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../app/components/ui/dropdown-menu";
 import { cn } from "../lib/utils";
 import { createPortal } from "react-dom";
 import { useTests } from "../contexts/TestContext";
@@ -527,6 +534,22 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const handlePauseTest = () => { changeTestStatus(selectedTest.id, 'paused'); };
   const handleStopTest = () => { changeTestStatus(selectedTest.id, 'completed'); };
 
+  const handleExportEvents = async () => {
+    try {
+      await api.exportEventsCsv(selectedTest.id);
+    } catch {
+      toast.error("Couldn't export raw events. Please try again.");
+    }
+  };
+
+  const handleExportAnalytics = async () => {
+    try {
+      await api.exportAnalyticsXlsx(selectedTest.id);
+    } catch {
+      toast.error("Couldn't export analytics. Please try again.");
+    }
+  };
+
   const getStatusBadge = () => {
     const statusConfig: Record<string, { label: string; variant: any }> = {
       live: { label: 'Live', variant: 'live' },
@@ -675,6 +698,21 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                 <span className="text-sm text-[#050038]/60">{liveParticipants} participants</span>
               </div>
               <div className="flex items-center gap-4 text-[#050038]/60">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="hover:text-[#050038]" title="Export data">
+                      <Download size={20} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportEvents}>
+                      Raw events (.csv)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportAnalytics}>
+                      Analytics report (.xlsx)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {(selectedTest.status === 'live' || selectedTest.status === 'collecting') && (
                   <button onClick={handlePauseTest} className="hover:text-[#050038]"><Pause size={20} /></button>
                 )}

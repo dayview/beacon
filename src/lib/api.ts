@@ -70,6 +70,35 @@ async function request<T>(
     return data as T;
 }
 
+// ── File download (CSV/XLSX exports) ────────────────────────
+async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(fullUrl, { headers });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new ApiError(data.error || `Export failed (${response.status})`, response.status, data);
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : fallbackFilename;
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+}
+
 // ── Error class ─────────────────────────────────────────────
 export class ApiError extends Error {
     status: number;
@@ -138,6 +167,12 @@ export const api = {
             method: 'PUT',
             body: JSON.stringify({ provider, apiKey }),
         }),
+
+    exportEventsCsv: (testId: string) =>
+        downloadFile(`/api/analytics/${testId}/export/events.csv`, `beacon-events-${testId}.csv`),
+
+    exportAnalyticsXlsx: (testId: string) =>
+        downloadFile(`/api/analytics/${testId}/export/analytics.xlsx`, `beacon-analytics-${testId}.xlsx`),
 };
 
 // ── API Type Definitions ────────────────────────────────────

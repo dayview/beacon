@@ -11,6 +11,12 @@ import {
     batchSessionCounts
 } from '../services/comparisonService.js';
 import { generateSectionInsights } from '../services/sectionInsightsService.js';
+import {
+    computeElementStats,
+    computeSessionStats,
+    buildEventsCsv,
+    buildAnalyticsWorkbook,
+} from '../services/exportService.js';
 
 const router = Router();
 
@@ -24,53 +30,11 @@ router.get(
     authorizeTestOwner('testId'),
     async (req, res) => {
         try {
-            const sessions = await Session.find({ test: req.params.testId })
-                .select('events')
-                .lean();
-
-            // Aggregate interactions per element
-            const elementStats = new Map();
-
-            for (const session of sessions) {
-                for (const event of session.events || []) {
-                    const el = event.element || 'unknown';
-                    if (!elementStats.has(el)) {
-                        elementStats.set(el, {
-                            element: el,
-                            clicks: 0,
-                            hovers: 0,
-                            scrolls: 0,
-                            taskCompletes: 0,
-                            totalInteractions: 0,
-                            sessions: new Set(),
-                        });
-                    }
-                    const stats = elementStats.get(el);
-                    stats.totalInteractions++;
-                    stats.sessions.add(session._id.toString());
-                    if (event.type === 'click') stats.clicks++;
-                    else if (event.type === 'hover') stats.hovers++;
-                    else if (event.type === 'scroll') stats.scrolls++;
-                    else if (event.type === 'task_complete') stats.taskCompletes++;
-                }
-            }
-
-            // Convert to array and resolve session count
-            const elements = Array.from(elementStats.values())
-                .map((s) => ({
-                    element: s.element,
-                    clicks: s.clicks,
-                    hovers: s.hovers,
-                    scrolls: s.scrolls,
-                    taskCompletes: s.taskCompletes,
-                    totalInteractions: s.totalInteractions,
-                    sessionCount: s.sessions.size,
-                }))
-                .sort((a, b) => b.totalInteractions - a.totalInteractions);
+            const { totalSessions, elements } = await computeElementStats(req.params.testId);
 
             res.json({
                 testId: req.params.testId,
-                totalSessions: sessions.length,
+                totalSessions,
                 elements,
             });
         } catch (error) {
@@ -257,25 +221,7 @@ router.get(
     async (req, res) => {
         try {
             const testId = req.params.testId;
-            const sessions = await Session.find({ test: testId })
-                .select('status startedAt completedAt')
-                .lean();
-
-            const totalSessions = sessions.length;
-            const completedSessions = sessions.filter(s => s.status === 'completed');
-            const completionRate = totalSessions > 0
-                ? Math.round((completedSessions.length / totalSessions) * 100)
-                : 0;
-
-            const timedSessions = completedSessions.filter(
-                s => s.completedAt && s.startedAt
-            );
-            const avgDurationMs = timedSessions.length > 0
-                ? timedSessions.reduce((sum, s) =>
-                    sum + (new Date(s.completedAt) - new Date(s.startedAt)), 0
-                ) / timedSessions.length
-                : 0;
-            const avgDuration = Math.round(avgDurationMs / 1000); // seconds
+            const { totalSessions, completionRate, avgDuration } = await computeSessionStats(testId);
 
             res.json({ testId, totalSessions, completionRate, avgDuration });
         } catch (error) {
@@ -307,6 +253,58 @@ router.get(
             res.status(500).json({
                 error: 'Failed to compute comparison metrics.'
             });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/export/events.csv ─────────────
+// Raw per-event rows (one row per click/hover/scroll/task_complete)
+router.get(
+    '/:testId/export/events.csv',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const csv = await buildEventsCsv(req.params.testId);
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename="beacon-events-${req.params.testId}.csv"`
+            );
+            res.send(csv);
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Events export error:`, error);
+            res.status(500).json({ error: 'Failed to export raw events.' });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/export/analytics.xlsx ─────────
+// Aggregated analytics as a multi-sheet workbook (elements, confusion,
+// dwell times, sections, flow, scroll depth, session stats).
+router.get(
+    '/:testId/export/analytics.xlsx',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const buffer = await buildAnalyticsWorkbook(req.params.testId);
+            res.setHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            );
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename="beacon-analytics-${req.params.testId}.xlsx"`
+            );
+            res.send(buffer);
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Analytics export error:`, error);
+            res.status(500).json({ error: 'Failed to export analytics.' });
         }
     }
 );
