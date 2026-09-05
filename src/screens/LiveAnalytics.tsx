@@ -39,7 +39,7 @@ import { cn } from "../lib/utils";
 import { createPortal } from "react-dom";
 import { useTests } from "../contexts/TestContext";
 import { toast } from "sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats } from "../lib/api";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats, ApiSectionInsight, ApiSectionOutcome } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
 import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
 
@@ -174,7 +174,7 @@ export const getPeakActivityCoords = (data: { x: number; y: number }[], width: n
 // ── LiveAnalytics Component ─────────────────────────────────
 export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate }) => {
   const { selectedTest, changeTestStatus } = useTests();
-  const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'flow' | 'ai'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'sections' | 'flow' | 'ai'>('overview');
   const [highlightZone, setHighlightZone] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
@@ -197,6 +197,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [flowData, setFlowData] = useState<{ path: string[]; count: number; percentage: number }[]>([]);
   const [flowLoading, setFlowLoading] = useState(false);
+  const [sectionInsights, setSectionInsights] = useState<ApiSectionInsight[]>([]);
+  const [sectionsMode, setSectionsMode] = useState<'guided' | 'free'>('free');
+  const [sectionsLoading, setSectionsLoading] = useState(false);
   const [liveParticipants, setLiveParticipants] = useState(0);
   const [liveClicks, setLiveClicks] = useState(0);
   const [firstClickData, setFirstClickData] = useState<{ name: string; value: number; color: string }[]>([]);
@@ -208,6 +211,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
   const hasFetchedHeatmap = useRef(false);
   const hasFetchedAi = useRef(false);
   const hasFetchedFlow = useRef(false);
+  const hasFetchedSections = useRef(false);
   const CANVAS_WIDTH_PX = 1200;
   const CANVAS_HEIGHT_PX = 800;
   const COORD_MAX_X = 1200;
@@ -432,6 +436,21 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     }
   }, [selectedTest]);
 
+  const fetchSectionInsights = useCallback(async () => {
+    if (!selectedTest) return;
+    setSectionsLoading(true);
+    try {
+      const data = await api.fetchSectionInsights(selectedTest.id);
+      setSectionInsights(data.sections || []);
+      setSectionsMode(data.mode);
+    } catch (err) {
+      console.warn('[LiveAnalytics] No section insights available:', err);
+      setSectionInsights([]);
+    } finally {
+      setSectionsLoading(false);
+    }
+  }, [selectedTest]);
+
   // ── Initial data loads (analytics only — heatmap is on-demand) ──
   useEffect(() => {
     fetchAnalytics();
@@ -466,7 +485,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       hasFetchedHeatmap.current = true;
       fetchHeatmap();
     }
-  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap]);
+    if (activeTab === 'sections' && !hasFetchedSections.current && !sectionsLoading) {
+      hasFetchedSections.current = true;
+      fetchSectionInsights();
+    }
+  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap, sectionsLoading, fetchSectionInsights]);
 
   // ── Socket.IO real-time updates ───────────────────────
   useEffect(() => {
@@ -726,7 +749,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
           {/* Tab Navigation */}
           <div className="px-6 border-b border-[#050038]/10">
             <div className="flex gap-6">
-              {['Overview', 'Heatmap', 'Flow', 'AI Insights'].map((tab) => {
+              {['Overview', 'Heatmap', 'Sections', 'Flow', 'AI Insights'].map((tab) => {
                 const id = tab.toLowerCase().split(' ')[0] as any;
                 return (
                   <button
@@ -738,6 +761,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                     )}
                   >
                     {tab === 'AI Insights' && <Lightbulb size={14} className="inline mr-1 mb-0.5" />}
+                    {tab === 'Sections' && <Layers size={14} className="inline mr-1 mb-0.5" />}
                     {tab}
                   </button>
                 );
@@ -1187,6 +1211,69 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               </div>
             )}
 
+            {/* ═══ SECTIONS TAB ═══ */}
+            {activeTab === 'sections' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div>
+                  <h3 className="text-base font-semibold text-[#050038] mb-1">Section Insights</h3>
+                  <p className="text-sm text-[#050038]/60 mb-2">
+                    Per-section reach, dwell, and backtracking — classified with a confidence score, never guessed.
+                  </p>
+                  {!sectionsLoading && sectionInsights.length > 0 && (
+                    <p className="text-xs text-[#050038]/40">
+                      {sectionsMode === 'guided'
+                        ? 'Guided walkthrough — sections are the tasks you defined for this test.'
+                        : 'Free exploration — sections are this board\'s Miro frames.'}
+                    </p>
+                  )}
+                </div>
+
+                {sectionsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="animate-spin text-[#4262ff]" />
+                    <span className="ml-2 text-sm text-[#050038]/60">Loading section insights...</span>
+                  </div>
+                ) : sectionInsights.length > 0 ? (
+                  <div className="space-y-3">
+                    {sectionInsights.map((section) => {
+                      const meta = SECTION_OUTCOME_META[section.outcome];
+                      return (
+                        <div key={section.frameId} className="rounded-lg bg-white border border-[#050038]/10 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="text-xs font-mono text-[#050038]/40">#{section.order + 1}</span>
+                              <span className="ml-2 text-sm font-medium text-[#050038]">{section.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", meta.badgeClass)}>
+                                {meta.label}
+                              </span>
+                              <span className="text-xs text-[#050038]/40">{Math.round(section.confidence * 100)}% confidence</span>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#050038]/60">
+                            <span>Reached: {section.reachedCount}/{section.totalSessions} ({Math.round(section.reachedRatio * 100)}%)</span>
+                            <span>Avg dwell: {formatMs(section.avgDwellMs)}</span>
+                            {section.backtrackCount > 0 && <span>Backtracks: {section.backtrackCount}</span>}
+                            {section.avgInteractionDensity !== null && <span>Avg interactions: {section.avgInteractionDensity}/session</span>}
+                          </div>
+                          <p className="mt-2 text-sm text-[#050038]/70">{section.explanation}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
+                    <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
+                    <h3 className="text-base font-semibold text-[#050038] mb-2">No section data yet</h3>
+                    <p className="text-sm text-[#050038]/60">
+                      Section insights will appear once participants have completed sessions on a board with defined tasks or frames.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ═══ FLOW TAB ═══ */}
             {activeTab === 'flow' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -1256,6 +1343,21 @@ function formatDuration(seconds: number): string {
   const secs = seconds % 60;
   return `${minutes}m ${secs}s`;
 }
+
+function formatMs(ms: number | null): string {
+  if (ms === null) return '—';
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+}
+
+const SECTION_OUTCOME_META: Record<ApiSectionOutcome, { label: string; badgeClass: string }> = {
+  skipped: { label: 'Skipped', badgeClass: 'bg-gray-100 text-gray-700' },
+  insufficient_attention: { label: 'Skimmed', badgeClass: 'bg-amber-100 text-amber-700' },
+  prolonged_dwell: { label: 'Prolonged dwell (unclear)', badgeClass: 'bg-yellow-100 text-yellow-700' },
+  likely_confusion: { label: 'Likely confusion', badgeClass: 'bg-red-100 text-red-700' },
+  likely_high_interest: { label: 'Likely high interest', badgeClass: 'bg-green-100 text-green-700' },
+  repeated_navigation: { label: 'Repeated navigation', badgeClass: 'bg-blue-100 text-blue-700' },
+  normal: { label: 'Normal', badgeClass: 'bg-gray-100 text-gray-600' },
+};
 
 
 

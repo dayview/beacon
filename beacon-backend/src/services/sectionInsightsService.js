@@ -24,6 +24,16 @@ import Test from '../models/Test.js';
  *    inferable the same way, so those sessions contribute interaction
  *    density (a real signal) rather than a synthesized dwell number.
  *
+ * A section with no dwell samples at all (always true for free-exploration
+ * sections, since MiroPanel never emits dwellMs) falls back to interaction
+ * density, judged against the test's own median density, as the primary
+ * signal instead of a flat low-confidence "normal". That fallback can only
+ * ever resolve toward likely_high_interest or insufficient_attention, never
+ * likely_confusion or repeated_navigation — confusion and backtracking
+ * detection both depend on signals (backtrackCount, dwell) that free
+ * exploration doesn't capture, so this never guesses confusion from
+ * density alone.
+ *
  * What this does NOT claim to use, because the app doesn't capture it:
  * zoom-repeat, idle time, or reading order. Bowei named all three as
  * useful signals — they're not fabricated here.
@@ -54,11 +64,63 @@ function round2(n) {
 }
 
 /**
+ * Fallback classification for a section with no dwell samples at all
+ * (always the case for free-exploration sections). Judges interaction
+ * density against the test's own median density — the same relative-to-
+ * baseline approach classifySection uses for dwell. Single-signal, so
+ * confidence is capped lower than a dwell+backtrack corroborated call, and
+ * it never claims confusion: without dwell or backtracking data there's no
+ * way to distinguish "confused" from "not engaged" beyond low density.
+ */
+function classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity }) {
+    if (avgInteractionDensity === null || medianInteractionDensity === null || medianInteractionDensity === 0) {
+        return {
+            outcome: OUTCOMES.NORMAL,
+            confidence: 0.2,
+            explanation: 'Reached by most participants, but not enough dwell-time or interaction data was recorded to say more.',
+        };
+    }
+
+    const densityRatio = avgInteractionDensity / medianInteractionDensity;
+
+    if (densityRatio > 1.5) {
+        const pctAbove = Math.round((densityRatio - 1) * 100);
+        return {
+            outcome: OUTCOMES.LIKELY_HIGH_INTEREST,
+            confidence: round2(Math.min(0.7, 0.3 + (densityRatio - 1) * 0.2)),
+            explanation: `Interaction density (clicks/hovers) is ${pctAbove}% above the test's median — a pattern consistent with genuine interest. This test has no dwell-time or backtracking data (free-exploration mode), so confusion can't be distinguished from interest here — only interest is ever inferred from density alone.`,
+        };
+    }
+
+    if (densityRatio < 0.5) {
+        const pctBelow = Math.round((1 - densityRatio) * 100);
+        return {
+            outcome: OUTCOMES.INSUFFICIENT_ATTENTION,
+            confidence: round2(Math.min(0.7, 0.3 + (0.5 - densityRatio))),
+            explanation: `Interaction density is ${pctBelow}% below the test's median — participants likely passed through this section with little engagement.`,
+        };
+    }
+
+    return {
+        outcome: OUTCOMES.NORMAL,
+        confidence: 0.4,
+        explanation: 'Interaction density for this section was typical relative to the rest of the test.',
+    };
+}
+
+/**
  * Classify one section from its aggregated signals. Every branch names the
  * signals it used in `explanation`, and `confidence` (0–1) always reflects
  * how much corroborating evidence backed the call — not a fixed constant.
  */
-function classifySection({ reachedRatio, avgDwellMs, medianDwellMs, backtrackCount, avgInteractionDensity }) {
+function classifySection({
+    reachedRatio,
+    avgDwellMs,
+    medianDwellMs,
+    backtrackCount,
+    avgInteractionDensity,
+    medianInteractionDensity,
+}) {
     if (reachedRatio === 0) {
         return {
             outcome: OUTCOMES.SKIPPED,
@@ -75,12 +137,10 @@ function classifySection({ reachedRatio, avgDwellMs, medianDwellMs, backtrackCou
         };
     }
 
-    if (avgDwellMs === null || medianDwellMs === null || medianDwellMs === 0) {
-        return {
-            outcome: OUTCOMES.NORMAL,
-            confidence: 0.2,
-            explanation: 'Reached by most participants, but not enough dwell-time data was recorded to say more.',
-        };
+    const hasDwellSignal = avgDwellMs !== null && medianDwellMs !== null && medianDwellMs > 0;
+
+    if (!hasDwellSignal) {
+        return classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity });
     }
 
     const dwellRatio = avgDwellMs / medianDwellMs;
@@ -220,6 +280,14 @@ export async function generateSectionInsights(testId) {
         .map(average);
     const medianDwellMs = sectionAvgDwells.length > 0 ? median(sectionAvgDwells) : null;
 
+    // Same idea for interaction density — the fallback signal for sections
+    // with no dwell samples at all (free-exploration tests).
+    const sectionAvgDensities = sectionIds
+        .map((id) => stats.get(id).interactionDensities)
+        .filter((samples) => samples.length > 0)
+        .map(average);
+    const medianInteractionDensity = sectionAvgDensities.length > 0 ? median(sectionAvgDensities) : null;
+
     const sections = sectionIds.map((frameId, order) => {
         const s = stats.get(frameId);
         const reachedCount = s.reachedSessionIds.size;
@@ -235,6 +303,7 @@ export async function generateSectionInsights(testId) {
             medianDwellMs,
             backtrackCount: s.backtrackCount,
             avgInteractionDensity,
+            medianInteractionDensity,
         });
 
         return {

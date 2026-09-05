@@ -162,6 +162,9 @@ export const api = {
             { method: 'POST', body: JSON.stringify({ testIds }) }
         ),
 
+    fetchSectionInsights: (testId: string) =>
+        request<ApiSectionInsights>(`/api/analytics/${testId}/sections`),
+
     saveAiSettings: (provider: string, apiKey: string) =>
         request<{ success: boolean; provider: string }>(`/api/users/ai-settings`, {
             method: 'PUT',
@@ -342,6 +345,37 @@ export interface ApiPredictiveResult {
     predictions: ApiPrediction[];
     summary: string;
     heatmap: ApiHeatmap;
+}
+
+export type ApiSectionOutcome =
+    | 'skipped'
+    | 'insufficient_attention'
+    | 'prolonged_dwell'
+    | 'likely_confusion'
+    | 'likely_high_interest'
+    | 'repeated_navigation'
+    | 'normal';
+
+export interface ApiSectionInsight {
+    frameId: string;
+    label: string;
+    order: number;
+    reachedCount: number;
+    totalSessions: number;
+    reachedRatio: number; // 0-1
+    avgDwellMs: number | null;
+    backtrackCount: number;
+    avgInteractionDensity: number | null;
+    outcome: ApiSectionOutcome;
+    confidence: number; // 0-1
+    explanation: string;
+}
+
+export interface ApiSectionInsights {
+    testId: string;
+    mode: 'guided' | 'free';
+    totalSessions: number;
+    sections: ApiSectionInsight[];
 }
 
 export interface ApiComparisonMetrics {
