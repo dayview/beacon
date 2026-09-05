@@ -4,6 +4,30 @@ import AIInsight from '../models/AIInsight.js';
  * Multi-provider AI service for session analysis.
  */
 
+const OPENAI_MODEL = 'gpt-4o';
+const OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const ANTHROPIC_MODEL = 'claude-3-5-sonnet-20241022';
+
+// Approximate published per-model pricing (USD per 1M tokens: input/output).
+// Provider APIs return token *usage*, not billed dollar cost, so cost is
+// computed from this table against real usage — it's an estimate, not the
+// provider's actual invoice, and will drift if a provider changes pricing
+// without this table being updated to match.
+const MODEL_PRICING = {
+    [OPENAI_MODEL]: { input: 2.50, output: 10.00 },
+    [OPENROUTER_MODEL]: { input: 0, output: 0 }, // ":free" suffix — always $0
+    [ANTHROPIC_MODEL]: { input: 3.00, output: 15.00 },
+};
+
+function computeCost(model, inputTokens, outputTokens) {
+    const pricing = MODEL_PRICING[model];
+    if (!pricing || typeof inputTokens !== 'number' || typeof outputTokens !== 'number') {
+        return 0;
+    }
+    const cost = (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
+    return Math.round(cost * 10000) / 10000;
+}
+
 // ── Provider API calls ───────────────────────────────────────
 
 async function callOpenAI(apiKey, prompt) {
@@ -14,7 +38,7 @@ async function callOpenAI(apiKey, prompt) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: 'gpt-4o',
+            model: OPENAI_MODEL,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
@@ -27,7 +51,8 @@ async function callOpenAI(apiKey, prompt) {
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
-    return { content, cost: 0 };
+    const cost = computeCost(OPENAI_MODEL, data.usage?.prompt_tokens, data.usage?.completion_tokens);
+    return { content, cost };
 }
 
 async function callOpenRouter(apiKey, prompt) {
@@ -40,7 +65,7 @@ async function callOpenRouter(apiKey, prompt) {
             'X-Title': 'Beacon',
         },
         body: JSON.stringify({
-            model: 'meta-llama/llama-3.3-70b-instruct:free',
+            model: OPENROUTER_MODEL,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
         }),
@@ -53,7 +78,8 @@ async function callOpenRouter(apiKey, prompt) {
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
-    return { content, cost: 0 };
+    const cost = computeCost(OPENROUTER_MODEL, data.usage?.prompt_tokens, data.usage?.completion_tokens);
+    return { content, cost };
 }
 
 async function callAnthropic(apiKey, prompt) {
@@ -65,7 +91,7 @@ async function callAnthropic(apiKey, prompt) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
+            model: ANTHROPIC_MODEL,
             max_tokens: 1024,
             messages: [{ role: 'user', content: prompt }],
         }),
@@ -78,7 +104,8 @@ async function callAnthropic(apiKey, prompt) {
 
     const data = await response.json();
     const content = data.content?.[0]?.text || '';
-    return { content, cost: 0 };
+    const cost = computeCost(ANTHROPIC_MODEL, data.usage?.input_tokens, data.usage?.output_tokens);
+    return { content, cost };
 }
 
 async function callCustom(endpoint, headers, prompt) {
@@ -105,6 +132,8 @@ async function callCustom(endpoint, headers, prompt) {
         data.content?.[0]?.text ||
         data.response ||
         JSON.stringify(data);
+    // Cost stays 0 here — a user-supplied custom endpoint has no known model
+    // or pricing to compute it against, unlike the three named providers above.
     return { content, cost: 0 };
 }
 

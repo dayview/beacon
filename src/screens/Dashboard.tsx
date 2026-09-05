@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, GitCompare, User, Play, Pause, Square, MoreHorizontal, ArrowRight, Clock, Users, Calendar, Trash2, Link } from "lucide-react";
+import { Plus, GitCompare, User, Play, Pause, Square, MoreHorizontal, ArrowRight, Clock, Users, Calendar, Trash2, Link, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
 import { useTests, Test } from "../contexts/TestContext";
 import { EditTestModal } from "../components/EditTestModal";
 import { DeleteConfirmModal } from "../components/DeleteConfirmModal";
@@ -13,7 +13,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest, onSignOut }) => {
-  const { tests, selectTest, updateTest, deleteTest, changeTestStatus } = useTests();
+  const { tests, isLoading, loadError, refreshTests, selectTest, updateTest, deleteTest, changeTestStatus } = useTests();
   const [editingTest, setEditingTest] = useState<Test | null>(null);
   const [deletingTest, setDeletingTest] = useState<Test | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -165,6 +165,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onOpenNewTest,
 
           {/* Test Cards Grid */}
           {(() => {
+            if (isLoading && tests.length === 0) {
+              return (
+                <div className="mt-8 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#050038]/10 bg-white p-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#4262ff]" />
+                  <p className="mt-4 text-sm text-[#050038]/60">Loading your tests...</p>
+                </div>
+              );
+            }
+
+            if (loadError && tests.length === 0) {
+              return (
+                <div className="mt-8 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-red-200 bg-red-50 p-12">
+                  <div className="rounded-full bg-white p-4">
+                    <AlertTriangle className="h-8 w-8 text-red-500" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-[#050038]">Couldn't load your tests</h3>
+                  <p className="mt-2 text-center text-sm text-[#050038]/60">{loadError}</p>
+                  <button
+                    onClick={() => refreshTests()}
+                    className="mt-6 inline-flex items-center justify-center gap-2 rounded-md bg-white border border-red-200 px-6 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                  </button>
+                </div>
+              );
+            }
+
             const filteredTests = activeTab === 'active'
               ? tests.filter(t => t.status !== 'completed')
               : tests.filter(t => t.status === 'completed');

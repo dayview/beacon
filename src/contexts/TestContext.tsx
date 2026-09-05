@@ -47,6 +47,7 @@ interface TestContextType {
   tests: Test[];
   selectedTest: Test | null;
   isLoading: boolean;
+  loadError: string | null;
   addTest: (test: Omit<Test, 'id' | 'createdAt'>) => Promise<Test>;
   updateTest: (id: string, updates: Partial<Test>) => void;
   deleteTest: (id: string) => void;
@@ -105,10 +106,12 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [tests, setTests] = useState<Test[]>([]);
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchTests = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await api.get<{ tests: ApiTest[] }>('/api/tests');
       setTests(data.tests.map(mapApiTestToTest));
@@ -135,8 +138,10 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Non-fatal — comparison filter falls back to empty state
       }
     } catch (err) {
-      console.warn('[TestContext] Failed to fetch tests from API, using empty state:', err);
-      // Don't toast on every load failure — user sees empty dashboard
+      console.warn('[TestContext] Failed to fetch tests from API:', err);
+      // Don't toast — a toast disappears and this is a persistent state the
+      // screen itself should reflect (see Dashboard's loadError handling).
+      setLoadError(err instanceof ApiError ? err.message : "Couldn't load your tests. Check your connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -219,6 +224,7 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         tests,
         selectedTest,
         isLoading,
+        loadError,
         addTest,
         updateTest,
         deleteTest,

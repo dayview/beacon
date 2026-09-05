@@ -23,7 +23,7 @@ The repo contains two independent Node apps:
 - `npm run build` — production build to `dist/`
 - `npm run preview` — preview the production build
 
-There is no lint script or ESLint config in this repo, and no `tsconfig.json` — don't assume `npm run lint` or `tsc` work despite what the root README's table says.
+There is no lint script or ESLint config in this repo — don't assume `npm run lint` works despite what the root README's table says. There is a `tsconfig.json` (strict mode, scoped to `src/` — `vite.config.ts` isn't included since it runs in a Node context, not the browser one `src/` targets) and a `npm run typecheck` script (`tsc --noEmit`); it currently passes clean.
 
 ### Backend only (run from `beacon-backend/`)
 - `npm install` — install deps
