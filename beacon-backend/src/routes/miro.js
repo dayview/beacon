@@ -8,6 +8,22 @@ import {
 
 const router = Router();
 
+// Miro image URLs (board thumbnails) are always served from a miro.com
+// subdomain. The thumbnails route below fetches a URL with the user's Miro
+// bearer token attached, so it must never fetch anywhere else — otherwise a
+// caller could pass `?url=` pointing at an internal host or attacker server
+// and have the token leaked to it (SSRF).
+function isTrustedMiroImageUrl(urlString) {
+    let parsed;
+    try {
+        parsed = new URL(urlString);
+    } catch {
+        return false;
+    }
+    return parsed.protocol === 'https:'
+        && (parsed.hostname === 'miro.com' || parsed.hostname.endsWith('.miro.com'));
+}
+
 // ── GET /api/miro/authorize ─────────────────────────────
 // Step 1: Initiate OAuth - redirect user to Miro's auth screen
 // The Beacon access token is passed as 'state' so we can recover the owner
@@ -89,6 +105,10 @@ router.get('/thumbnails/:boardId', auth, async (req, res) => {
 
         // Use the board picture URL if passed in query, else fetch it
         let imageUrl = req.query.url;
+        if (imageUrl && !isTrustedMiroImageUrl(imageUrl)) {
+            return res.status(400).send('Invalid thumbnail URL.');
+        }
+
         if (!imageUrl) {
             const response = await fetch(`https://api.miro.com/v2/boards/${req.params.boardId}`, {
                 headers: { Authorization: `Bearer ${miroToken}` }
@@ -98,7 +118,7 @@ router.get('/thumbnails/:boardId', auth, async (req, res) => {
             imageUrl = data.picture?.imageURL;
         }
 
-        if (!imageUrl) {
+        if (!imageUrl || !isTrustedMiroImageUrl(imageUrl)) {
             return res.status(404).send('No thumbnail available');
         }
 
@@ -110,7 +130,7 @@ router.get('/thumbnails/:boardId', auth, async (req, res) => {
         if (!imageRes.ok) return res.status(imageRes.status).send('Failed to fetch image');
 
         const contentType = imageRes.headers.get('content-type');
-        res.set('Content-Type', contentType);
+        res.set('Content-Type', contentType?.startsWith('image/') ? contentType : 'application/octet-stream');
 
         const buffer = await imageRes.arrayBuffer();
         res.send(Buffer.from(buffer));
