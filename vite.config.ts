@@ -3,6 +3,12 @@ import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
+// Backend proxy target for the Vite dev server. Defaults to localhost:3001
+// for native `npm run dev`; override with BACKEND_PROXY_TARGET when the
+// backend isn't reachable at localhost (e.g. a separate Docker container,
+// where it must be the backend service's name instead).
+const backendProxyTarget = process.env.BACKEND_PROXY_TARGET || 'http://localhost:3001'
+
 export default defineConfig({
   plugins: [
     // The React and Tailwind plugins are both required for Make, even if
@@ -23,11 +29,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: backendProxyTarget,
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: backendProxyTarget,
         changeOrigin: true,
         ws: true,
       },
