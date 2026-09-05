@@ -123,12 +123,14 @@ app.use((err, _req, res, _next) => {
 // ── Start ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 
-connectDB().then(() => {
-    httpServer.listen(PORT, () => {
-        console.log(`[${new Date().toISOString()}] Beacon server running on port ${PORT}`);
-        console.log(`[${new Date().toISOString()}] Environment: ${process.env.NODE_ENV || 'development'}`);
+function start() {
+    return connectDB().then(() => {
+        httpServer.listen(PORT, () => {
+            console.log(`[${new Date().toISOString()}] Beacon server running on port ${PORT}`);
+            console.log(`[${new Date().toISOString()}] Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
     });
-});
+}
 
 // ── Graceful shutdown ────────────────────────────────────────
 const shutdown = async (signal) => {
@@ -156,7 +158,15 @@ const shutdown = async (signal) => {
     process.exit(0);
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+// Only auto-start (connect to Mongo, bind the port, install signal
+// handlers) when this file is run directly (`node src/server.js`) — not
+// when imported, e.g. by tests, which manage their own app/DB lifecycle
+// against a throwaway database instead of whatever MONGODB_URI is in .env.
+const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+    start();
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+}
 
-export { app, httpServer, io };
+export { app, httpServer, io, start };
