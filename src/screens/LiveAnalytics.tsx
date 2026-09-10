@@ -39,9 +39,9 @@ import { cn } from "../lib/utils";
 import { createPortal } from "react-dom";
 import { useTests } from "../contexts/TestContext";
 import { toast } from "sonner";
-import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats, ApiSectionInsight, ApiSectionOutcome } from "../lib/api";
+import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats, ApiSectionInsight, ApiSectionOutcome, ApiSessionListItem } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
-import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft } from "../lib/socket";
+import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft, onSampleMilestone } from "../lib/socket";
 
 interface LiveAnalyticsProps {
   onBack: () => void;
@@ -207,6 +207,21 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
 
   const [sessionStats, setSessionStats] = useState<ApiSessionStats | null>(null);
 
+  // ── Analytics filters (session / role / board section) ────────
+  const [sessionList, setSessionList] = useState<ApiSessionListItem[]>([]);
+  const [filterSessionId, setFilterSessionId] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterSectionId, setFilterSectionId] = useState('');
+  const roleOptions = Array.from(new Set(sessionList.map((s) => s.role).filter((r): r is string => !!r)));
+  const filterQuery = (() => {
+    const params = new URLSearchParams();
+    if (filterSessionId) params.set('sessionId', filterSessionId);
+    if (filterRole) params.set('role', filterRole);
+    if (filterSectionId) params.set('sectionId', filterSectionId);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  })();
+
   const boardRef = useRef<HTMLDivElement>(null);
   const hasFetchedHeatmap = useRef(false);
   const hasFetchedAi = useRef(false);
@@ -226,7 +241,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     setAnalyticsLoading(true);
     try {
       const [data, statsData] = await Promise.all([
-        api.get<ApiAnalyticsSummary>(`/api/analytics/${selectedTest.id}/summary`),
+        api.get<ApiAnalyticsSummary>(`/api/analytics/${selectedTest.id}/summary${filterQuery}`),
+        // Session stats stay unfiltered — the min-sample-size warning
+        // reflects the whole test's reliability, not the filtered slice.
         api.get<ApiSessionStats>(`/api/analytics/${selectedTest.id}/session-stats`),
       ]);
       setAnalyticsData(data);
@@ -251,7 +268,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     } finally {
       setAnalyticsLoading(false);
     }
-  }, [selectedTest]);
+  }, [selectedTest, filterQuery]);
 
   // ── Calculate Click Distribution Helper ─────────────────
   const updateClickDistribution = useCallback((allPoints: { x: number; y: number; intensity: number }[]) => {
@@ -426,7 +443,7 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     if (!selectedTest) return;
     setFlowLoading(true);
     try {
-      const data = await api.get<{ topPaths?: { path: string[]; count: number; percentage: number }[]; paths?: { path: string[]; count: number; percentage: number }[] }>(`/api/analytics/${selectedTest.id}/flow`);
+      const data = await api.get<{ topPaths?: { path: string[]; count: number; percentage: number }[]; paths?: { path: string[]; count: number; percentage: number }[] }>(`/api/analytics/${selectedTest.id}/flow${filterQuery}`);
       setFlowData(data.topPaths || data.paths || []);
     } catch (err) {
       console.warn('[LiveAnalytics] No flow data available:', err);
@@ -434,13 +451,23 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     } finally {
       setFlowLoading(false);
     }
-  }, [selectedTest]);
+  }, [selectedTest, filterQuery]);
 
   const fetchSectionInsights = useCallback(async () => {
     if (!selectedTest) return;
     setSectionsLoading(true);
     try {
-      const data = await api.fetchSectionInsights(selectedTest.id);
+      // sectionId is intentionally not sent here — this view already
+      // breaks results down by section, so filtering to one would just
+      // show a single row. Session/role filters still apply.
+      const sectionQuery = (() => {
+        const params = new URLSearchParams();
+        if (filterSessionId) params.set('sessionId', filterSessionId);
+        if (filterRole) params.set('role', filterRole);
+        const qs = params.toString();
+        return qs ? `?${qs}` : '';
+      })();
+      const data = await api.fetchSectionInsights(selectedTest.id, sectionQuery);
       setSectionInsights(data.sections || []);
       setSectionsMode(data.mode);
     } catch (err) {
@@ -448,6 +475,19 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       setSectionInsights([]);
     } finally {
       setSectionsLoading(false);
+    }
+  }, [selectedTest, filterSessionId, filterRole]);
+
+  // ── Fetch the raw session list, to populate the session/role filter
+  // dropdowns (participants have no name, so sessions are labeled by
+  // when they ran). ──────────────────────────────────────────
+  const fetchSessionList = useCallback(async () => {
+    if (!selectedTest) return;
+    try {
+      const data = await api.fetchSessionList(selectedTest.id);
+      setSessionList(data.sessions || []);
+    } catch (err) {
+      console.warn('[LiveAnalytics] Failed to fetch session list:', err);
     }
   }, [selectedTest]);
 
@@ -469,7 +509,13 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
         handleGenerateHeatmap();
       }
     });
-  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap]); // Note: React Hook useEffect has a missing dependency: 'fetchPredictiveHeatmap'. Either include it or remove the dependency array. But Since it's ref controlled, it's fine. 
+    fetchSessionList();
+    // Eager-load section labels (used by the section filter dropdown)
+    // regardless of which tab is active; marks the sections tab as
+    // already-fetched so the lazy-load effect below doesn't repeat it.
+    hasFetchedSections.current = true;
+    fetchSectionInsights();
+  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap, fetchSessionList, fetchSectionInsights]); // Note: React Hook useEffect has a missing dependency: 'fetchPredictiveHeatmap'. Either include it or remove the dependency array. But Since it's ref controlled, it's fine.
 
   // ── Lazy-load tab data ────────────────────────────────
   useEffect(() => {
@@ -485,11 +531,15 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       hasFetchedHeatmap.current = true;
       fetchHeatmap();
     }
-    if (activeTab === 'sections' && !hasFetchedSections.current && !sectionsLoading) {
-      hasFetchedSections.current = true;
-      fetchSectionInsights();
-    }
-  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap, sectionsLoading, fetchSectionInsights]);
+  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap]);
+
+  // ── Refetch filterable views when a filter changes ─────────────
+  useEffect(() => {
+    if (!hasFetchedOnMount.current) return; // wait for the initial load above
+    if (activeTab === 'flow') fetchFlow();
+    if (activeTab === 'sections') fetchSectionInsights();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSessionId, filterRole, filterSectionId]);
 
   // ── Socket.IO real-time updates ───────────────────────
   useEffect(() => {
@@ -528,6 +578,20 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
 
     return () => { unsubs.forEach(fn => fn()); };
   }, [selectedTest?.id, selectedTest?.type]);
+
+  // ── Sample-size milestone toast — any test type, since sessions can
+  // complete asynchronously via a shared Participate link, not just while
+  // watching a live-session in real time. ─────────────────────────
+  useEffect(() => {
+    if (!selectedTest) return;
+    joinTestRoom(selectedTest.id);
+
+    return onSampleMilestone((data) => {
+      if (data.testId !== selectedTest.id) return;
+      toast.success(`You've hit your minimum sample size (${data.minSampleSize} sessions) — ready to review.`);
+      setSessionStats((prev) => prev ? { ...prev, completedSessions: data.completedSessions } : prev);
+    });
+  }, [selectedTest?.id]);
 
   // If no test is selected, show error state
   if (!selectedTest) {
@@ -768,6 +832,69 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               })}
             </div>
           </div>
+
+          {/* Analytics filters — narrows Overview/Sections/Flow together.
+              Not shown on Heatmap/AI Insights, which aren't filterable yet. */}
+          {(activeTab === 'overview' || activeTab === 'sections' || activeTab === 'flow') && (
+            <div className="flex flex-wrap items-center gap-3 border-b border-[#050038]/10 px-6 py-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[#050038]/40">Filter</span>
+              <select
+                className="h-8 rounded-md border border-[#050038]/10 bg-white px-2 text-xs text-[#050038]"
+                value={filterSessionId}
+                onChange={(e) => setFilterSessionId(e.target.value)}
+              >
+                <option value="">All sessions</option>
+                {sessionList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {new Date(s.startedAt).toLocaleString()}{s.role ? ` — ${s.role}` : ''}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-8 rounded-md border border-[#050038]/10 bg-white px-2 text-xs text-[#050038]"
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                disabled={roleOptions.length === 0}
+              >
+                <option value="">All roles</option>
+                {roleOptions.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              {activeTab !== 'sections' && (
+                <select
+                  className="h-8 rounded-md border border-[#050038]/10 bg-white px-2 text-xs text-[#050038]"
+                  value={filterSectionId}
+                  onChange={(e) => setFilterSectionId(e.target.value)}
+                  disabled={sectionInsights.length === 0}
+                >
+                  <option value="">All sections</option>
+                  {sectionInsights.map((s) => (
+                    <option key={s.frameId} value={s.frameId}>{s.label}</option>
+                  ))}
+                </select>
+              )}
+              {(filterSessionId || filterRole || filterSectionId) && (
+                <button
+                  className="text-xs font-semibold text-[#4262ff] hover:underline"
+                  onClick={() => { setFilterSessionId(''); setFilterRole(''); setFilterSectionId(''); }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Minimum sample-size warning — applies across every tab, since
+              every analytics view here is drawn from the same session pool. */}
+          {sessionStats && sessionStats.completedSessions < sessionStats.minSampleSize && (
+            <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-yellow-600 mt-0.5" />
+              <p>
+                <strong>Small sample size:</strong> only {sessionStats.completedSessions} of {sessionStats.minSampleSize} minimum completed sessions so far — results below may not be reliable yet.
+              </p>
+            </div>
+          )}
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-6">

@@ -31,6 +31,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [description, setDescription] = useState("");
   const [mode, setMode] = useState<"live-session" | "solo">("live-session");
   const [targetParticipants, setTargetParticipants] = useState(20);
+  const [minSampleSize, setMinSampleSize] = useState(5);
   const [boards, setBoards] = useState<ApiMiroBoard[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState("");
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
@@ -121,6 +122,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
           current: 0,
           target: targetParticipants
         },
+        minSampleSize,
         boardUrl: selectedBoardId,
         tasks,
       });
@@ -135,6 +137,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         setDescription("");
         setMode("live-session");
         setTargetParticipants(20);
+        setMinSampleSize(5);
         setSelectedBoardId(boards[0]?.id || "");
         setSelectedFrameIds([]);
       }, 500);
@@ -219,6 +222,21 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
                 />
               </div>
             )}
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                Minimum sample size
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={minSampleSize}
+                onChange={(e) => setMinSampleSize(parseInt(e.target.value) || 1)}
+              />
+              <p className="mt-1 text-xs text-[#050038]/50">
+                Completed sessions below this are flagged as low-confidence in analytics.
+              </p>
+            </div>
 
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-[#050038]">

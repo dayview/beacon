@@ -1,5 +1,6 @@
 import Session from '../models/Session.js';
 import Test from '../models/Test.js';
+import { buildSessionQuery } from './analyticsFilters.js';
 
 /**
  * Section Insights Service
@@ -202,9 +203,12 @@ function classifySection({
  * confidence-scored, explained outcome per section.
  *
  * @param {string} testId
+ * @param {Object} filters
+ * @param {string} [filters.sessionId] - restrict to one session
+ * @param {string} [filters.role] - restrict to sessions with this participant.demographics.role
  * @returns {{ testId: string, mode: 'guided'|'free', totalSessions: number, sections: object[] }}
  */
-export async function generateSectionInsights(testId) {
+export async function generateSectionInsights(testId, filters = {}) {
     const test = await Test.findById(testId).populate('board').lean();
     if (!test) {
         throw new Error('Test not found.');
@@ -232,7 +236,7 @@ export async function generateSectionInsights(testId) {
         return el?.content || frameId;
     };
 
-    const sessions = await Session.find({ test: testId }).select('events').lean();
+    const sessions = await Session.find(buildSessionQuery(testId, filters)).select('events').lean();
     const usableSessions = sessions.filter((s) => (s.events || []).length > 0);
     const totalSessions = usableSessions.length;
 

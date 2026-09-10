@@ -162,8 +162,11 @@ export const api = {
             { method: 'POST', body: JSON.stringify({ testIds }) }
         ),
 
-    fetchSectionInsights: (testId: string) =>
-        request<ApiSectionInsights>(`/api/analytics/${testId}/sections`),
+    fetchSectionInsights: (testId: string, query = '') =>
+        request<ApiSectionInsights>(`/api/analytics/${testId}/sections${query}`),
+
+    fetchSessionList: (testId: string) =>
+        request<{ sessions: ApiSessionListItem[] }>(`/api/analytics/${testId}/sessions`),
 
     saveAiSettings: (provider: string, apiKey: string) =>
         request<{ success: boolean; provider: string }>(`/api/users/ai-settings`, {
@@ -202,6 +205,7 @@ export interface ApiTest {
         recordScreen: boolean;
         captureEvents: boolean;
         maxParticipants: number;
+        minSampleSize: number;
         duration: number | null;
     };
     createdAt: string;
@@ -303,8 +307,17 @@ export interface ApiAnalyticsSummary {
 export interface ApiSessionStats {
     testId: string;
     totalSessions: number;
+    completedSessions: number;
     completionRate: number;
     avgDuration: number;
+    minSampleSize: number;
+}
+
+export interface ApiSessionListItem {
+    id: string;
+    startedAt: string;
+    status: 'in_progress' | 'completed' | 'abandoned';
+    role: string | null;
 }
 
 export interface ApiMiroBoard {

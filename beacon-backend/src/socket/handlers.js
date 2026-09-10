@@ -241,6 +241,22 @@ export function initSocketHandlers(io) {
                         reason: 'completed',
                     });
 
+                    // Fire the "enough responses" milestone exactly once, the
+                    // moment completed sessions reach the test's configured
+                    // minimum sample size (not on every completion after).
+                    const [completedCount, test] = await Promise.all([
+                        Session.countDocuments({ test: session.test, status: 'completed' }),
+                        Test.findById(session.test).select('settings.minSampleSize').lean(),
+                    ]);
+                    const minSampleSize = test?.settings?.minSampleSize;
+                    if (minSampleSize && completedCount === minSampleSize) {
+                        io.to(`test:${session.test}`).emit(events.TEST_SAMPLE_MILESTONE, {
+                            testId: session.test,
+                            completedSessions: completedCount,
+                            minSampleSize,
+                        });
+                    }
+
                     // Leave rooms
                     socket.leave(`session:${session._id}`);
                 }

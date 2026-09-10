@@ -39,6 +39,7 @@ const testSchema = new mongoose.Schema({
         recordScreen: { type: Boolean, default: false },
         captureEvents: { type: Boolean, default: true },
         maxParticipants: { type: Number, default: 10 },
+        minSampleSize: { type: Number, default: 5 }, // completed sessions below this are flagged low-confidence
         duration: { type: Number, default: null }, // minutes
     },
     createdAt: { type: Date, default: Date.now },

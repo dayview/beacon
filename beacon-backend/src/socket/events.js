@@ -12,6 +12,7 @@ export const PARTICIPANT_JOINED = 'participant:joined';
 export const PARTICIPANT_EVENT = 'participant:event';
 export const PARTICIPANT_LEFT = 'participant:left';
 export const TEST_UPDATED = 'test:updated';
+export const TEST_SAMPLE_MILESTONE = 'test:sample-milestone';
 
 // ── Server → Participants ────────────────────────────────────
 export const TASK_UPDATE = 'task:update';

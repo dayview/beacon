@@ -18,6 +18,10 @@ export const Participate: React.FC = () => {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
     const stepStartedAtRef = useRef<number>(Date.now());
+    // Gates session:join behind an optional role prompt — researchers can
+    // then filter analytics by who was testing (e.g. "Designer" vs "PM").
+    const [hasStarted, setHasStarted] = useState(false);
+    const [role, setRole] = useState('');
 
     const testId = new URLSearchParams(window.location.search).get('testId');
 
@@ -55,27 +59,36 @@ export const Participate: React.FC = () => {
             stepStartedAtRef.current = Date.now();
         };
 
-        const joinSession = () => {
-            socket.emit('session:join', { testId, participantId: null, demographics: {} });
-        };
-
         socket.on('session:created', handleCreated);
 
-        if (socket.connected) {
-            // Already connected — emit immediately
-            joinSession();
-        } else {
-            // Wait for connection before emitting, so the event isn't lost
-            socket.once('connect', joinSession);
+        // Establish the connection as soon as the screen mounts, so it's
+        // ready the moment the participant clicks Start below — but don't
+        // join a session until they do, since the role prompt on that
+        // screen is optional input we want to capture first.
+        if (!socket.connected) {
             connectSocket();
         }
 
         return () => {
             socket.off('session:created', handleCreated);
-            socket.off('connect', joinSession);
             disconnectSocket();
         };
     }, [testId]);
+
+    const handleStart = () => {
+        const socket = getSocket();
+        const demographics = role.trim() ? { role: role.trim() } : {};
+        const joinSession = () => {
+            socket.emit('session:join', { testId, participantId: null, demographics });
+        };
+
+        if (socket.connected) {
+            joinSession();
+        } else {
+            socket.once('connect', joinSession);
+        }
+        setHasStarted(true);
+    };
 
     const handleDone = () => {
         if (sessionId) {
@@ -119,6 +132,26 @@ export const Participate: React.FC = () => {
         return (
             <div className="flex min-h-screen items-center justify-center p-small text-center text-slate-500">
                 Missing testId parameter.
+            </div>
+        );
+    }
+
+    if (!hasStarted) {
+        return (
+            <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] p-large text-center">
+                <p className="text-[#050038]">You're about to participate in a usability test.</p>
+                <div className="w-full max-w-xs text-left">
+                    <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                        Your role (optional)
+                    </label>
+                    <input
+                        className="w-full rounded-md border border-[#050038]/10 bg-white px-3 py-2 text-sm text-[#050038] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4262ff]"
+                        placeholder="e.g. Designer, PM, Engineer"
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                    />
+                </div>
+                <Button variant="primary" onClick={handleStart}>Start</Button>
             </div>
         );
     }

@@ -3,15 +3,16 @@ import Session from '../models/Session.js';
 import { detectConfusionZones, getDwellTimeSummary } from './confusionService.js';
 import { computeNavigationPaths, computeScrollDepth } from './flowService.js';
 import { generateSectionInsights } from './sectionInsightsService.js';
+import { buildSessionQuery, filterEventsBySection } from './analyticsFilters.js';
 
 // ── Shared aggregations (also used directly by routes/analytics.js) ──
 
-export async function computeElementStats(testId) {
-    const sessions = await Session.find({ test: testId }).select('events').lean();
+export async function computeElementStats(testId, filters = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, filters)).select('events').lean();
     const elementStats = new Map();
 
     for (const session of sessions) {
-        for (const event of session.events || []) {
+        for (const event of filterEventsBySection(session.events, filters.sectionId)) {
             const el = event.element || 'unknown';
             if (!elementStats.has(el)) {
                 elementStats.set(el, {
@@ -50,8 +51,8 @@ export async function computeElementStats(testId) {
     };
 }
 
-export async function computeSessionStats(testId) {
-    const sessions = await Session.find({ test: testId })
+export async function computeSessionStats(testId, filters = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, filters))
         .select('status startedAt completedAt')
         .lean();
 
@@ -70,6 +71,7 @@ export async function computeSessionStats(testId) {
 
     return {
         totalSessions,
+        completedSessions: completedSessions.length,
         completionRate,
         avgDuration: Math.round(avgDurationMs / 1000), // seconds
     };

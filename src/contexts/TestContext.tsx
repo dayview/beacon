@@ -20,6 +20,8 @@ export interface Test {
   status: 'live' | 'paused' | 'collecting' | 'completed' | 'draft';
   type: 'solo' | 'live-session' | 'remote';
   participants: { current: number; target: number };
+  /** Completed sessions below this are flagged as an unreliable sample size in LiveAnalytics. */
+  minSampleSize?: number;
   createdAt: string;
   thumbnail?: string;
   boardUrl?: string;
@@ -93,6 +95,7 @@ function mapApiTestToTest(t: ApiTest): Test {
       current: 0,
       target: t.settings?.maxParticipants || 10,
     },
+    minSampleSize: t.settings?.minSampleSize ?? 5,
     createdAt: t.createdAt,
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
     boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
@@ -159,7 +162,10 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       tasks: test.tasks && test.tasks.length > 0
         ? test.tasks
         : (test.description ? [{ description: test.description, order: 0 }] : []),
-      settings: { maxParticipants: test.participants?.target || 10 },
+      settings: {
+        maxParticipants: test.participants?.target || 10,
+        minSampleSize: test.minSampleSize || 5,
+      },
       board: test.boardUrl,
     });
     const newTest = mapApiTestToTest(data.test);

@@ -11,6 +11,7 @@ import {
     batchSessionCounts
 } from '../services/comparisonService.js';
 import { generateSectionInsights } from '../services/sectionInsightsService.js';
+import { buildSessionQuery } from '../services/analyticsFilters.js';
 import {
     computeElementStats,
     computeSessionStats,
@@ -19,6 +20,18 @@ import {
 } from '../services/exportService.js';
 
 const router = Router();
+
+// Shared analytics filters — every analytics endpoint below reads the same
+// three optional query params so LiveAnalytics's one filter bar can drive
+// every view: ?sessionId=, ?role=, ?sectionId= (a Miro frame ID).
+function parseFilters(req) {
+    const { sessionId, role, sectionId } = req.query;
+    return {
+        sessionId: sessionId || undefined,
+        role: role || undefined,
+        sectionId: sectionId || undefined,
+    };
+}
 
 // ── GET /api/analytics/:testId/elements ──────────────────────
 // Element-level interaction rollup
@@ -30,7 +43,7 @@ router.get(
     authorizeTestOwner('testId'),
     async (req, res) => {
         try {
-            const { totalSessions, elements } = await computeElementStats(req.params.testId);
+            const { totalSessions, elements } = await computeElementStats(req.params.testId, parseFilters(req));
 
             res.json({
                 testId: req.params.testId,
@@ -54,7 +67,7 @@ router.get(
     authorizeTestOwner('testId'),
     async (req, res) => {
         try {
-            const zones = await detectConfusionZones(req.params.testId);
+            const zones = await detectConfusionZones(req.params.testId, parseFilters(req));
 
             res.json({
                 testId: req.params.testId,
@@ -78,7 +91,7 @@ router.get(
     authorizeTestOwner('testId'),
     async (req, res) => {
         try {
-            const summary = await getDwellTimeSummary(req.params.testId);
+            const summary = await getDwellTimeSummary(req.params.testId, parseFilters(req));
 
             res.json({
                 testId: req.params.testId,
@@ -102,11 +115,43 @@ router.get(
     authorizeTestOwner('testId'),
     async (req, res) => {
         try {
-            const insights = await generateSectionInsights(req.params.testId);
+            const insights = await generateSectionInsights(req.params.testId, parseFilters(req));
             res.json(insights);
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Section insights error:`, error);
             res.status(500).json({ error: 'Failed to compute section insights.' });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/sessions ──────────────────────
+// Minimal per-session list (start time, status, reported role) to power
+// the session/role filter dropdowns in LiveAnalytics — participants have
+// no name, so sessions are identified by when they ran.
+router.get(
+    '/:testId/sessions',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const sessions = await Session.find({ test: req.params.testId })
+                .select('status startedAt participant.demographics.role')
+                .sort({ startedAt: -1 })
+                .lean();
+
+            res.json({
+                sessions: sessions.map((s) => ({
+                    id: s._id,
+                    startedAt: s.startedAt,
+                    status: s.status,
+                    role: s.participant?.demographics?.role || null,
+                })),
+            });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Session list error:`, error);
+            res.status(500).json({ error: 'Failed to fetch session list.' });
         }
     }
 );
@@ -127,6 +172,7 @@ router.get(
             const flow = await computeNavigationPaths(req.params.testId, {
                 topN,
                 maxPathLength,
+                ...parseFilters(req),
             });
 
             res.json({
@@ -152,7 +198,7 @@ router.get(
         try {
             const bucketSize = parseInt(req.query.bucketSize) || 100;
 
-            const depth = await computeScrollDepth(req.params.testId, { bucketSize });
+            const depth = await computeScrollDepth(req.params.testId, { bucketSize, ...parseFilters(req) });
 
             res.json({
                 testId: req.params.testId,
@@ -176,13 +222,14 @@ router.get(
     async (req, res) => {
         try {
             const testId = req.params.testId;
+            const filters = parseFilters(req);
             const [confusionZones, dwellTimes, flow, scrollDepth, sessions] =
                 await Promise.all([
-                    detectConfusionZones(testId),
-                    getDwellTimeSummary(testId),
-                    computeNavigationPaths(testId, { topN: 5 }),
-                    computeScrollDepth(testId),
-                    Session.countDocuments({ test: testId }),
+                    detectConfusionZones(testId, filters),
+                    getDwellTimeSummary(testId, filters),
+                    computeNavigationPaths(testId, { topN: 5, ...filters }),
+                    computeScrollDepth(testId, filters),
+                    Session.countDocuments(buildSessionQuery(testId, filters)),
                 ]);
 
             res.json({
@@ -221,9 +268,16 @@ router.get(
     async (req, res) => {
         try {
             const testId = req.params.testId;
-            const { totalSessions, completionRate, avgDuration } = await computeSessionStats(testId);
+            const { totalSessions, completedSessions, completionRate, avgDuration } = await computeSessionStats(testId);
 
-            res.json({ testId, totalSessions, completionRate, avgDuration });
+            res.json({
+                testId,
+                totalSessions,
+                completedSessions,
+                completionRate,
+                avgDuration,
+                minSampleSize: req.test.settings.minSampleSize,
+            });
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Session stats error:`, error);
             res.status(500).json({ error: 'Failed to compute session stats.' });

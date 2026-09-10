@@ -1,4 +1,5 @@
 import Session from '../models/Session.js';
+import { buildSessionQuery, filterEventsBySection } from './analyticsFilters.js';
 
 /**
  * Confusion Detection Service
@@ -24,16 +25,20 @@ const RAPID_CLICK_MIN = 3;          // Minimum clicks in window to flag
  *   - affectedSessions: count of sessions that exhibited this pattern
  *
  * @param {string} testId
+ * @param {Object} filters
+ * @param {string} [filters.sessionId] - restrict to one session
+ * @param {string} [filters.role] - restrict to sessions with this participant.demographics.role
+ * @param {string} [filters.sectionId] - restrict events to one board section (Miro frame)
  * @returns {Array} confusion zones
  */
-export async function detectConfusionZones(testId) {
-    const sessions = await Session.find({ test: testId }).lean();
+export async function detectConfusionZones(testId, filters = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, filters)).lean();
 
     const dwellMap = new Map();       // element → [{ duration, sessionId }]
     const clickSequences = new Map(); // sessionId → [{ element, timestamp, coordinates }]
 
     for (const session of sessions) {
-        const events = session.events || [];
+        const events = filterEventsBySection(session.events, filters.sectionId);
 
         // ── 1. Dwell-time analysis (hover duration per element) ───
         let lastHoverElement = null;
@@ -157,15 +162,19 @@ export async function detectConfusionZones(testId) {
  * Calculate dwell-time summary per element across all sessions of a test.
  *
  * @param {string} testId
+ * @param {Object} filters
+ * @param {string} [filters.sessionId]
+ * @param {string} [filters.role]
+ * @param {string} [filters.sectionId]
  * @returns {Array} [ { element, totalDwellMs, avgDwellMs, sessionCount } ]
  */
-export async function getDwellTimeSummary(testId) {
-    const sessions = await Session.find({ test: testId }).select('events').lean();
+export async function getDwellTimeSummary(testId, filters = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, filters)).select('events').lean();
 
     const elementDwell = new Map();
 
     for (const session of sessions) {
-        const events = session.events || [];
+        const events = filterEventsBySection(session.events, filters.sectionId);
         let lastElement = null;
         let lastTimestamp = null;
 

@@ -88,3 +88,12 @@ export function onParticipantLeft(
     s.on('participant:left', callback);
     return () => { s.off('participant:left', callback); };
 }
+
+/** Fires once, the moment a test's completed sessions reach its configured minimum sample size. */
+export function onSampleMilestone(
+    callback: (data: { testId: string; completedSessions: number; minSampleSize: number }) => void
+): () => void {
+    const s = getSocket();
+    s.on('test:sample-milestone', callback);
+    return () => { s.off('test:sample-milestone', callback); };
+}

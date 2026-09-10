@@ -1,4 +1,5 @@
 import Session from '../models/Session.js';
+import { buildSessionQuery } from './analyticsFilters.js';
 
 /**
  * Flow Analysis Service
@@ -19,10 +20,12 @@ import Session from '../models/Session.js';
  * @param {Object} options
  * @param {number} options.maxPathLength - Max number of elements in a path (default: 10)
  * @param {number} options.topN - Number of top paths to return (default: 10)
+ * @param {string} [options.sessionId] - restrict to one session
+ * @param {string} [options.role] - restrict to sessions with this participant.demographics.role
  * @returns {Object}
  */
-export async function computeNavigationPaths(testId, { maxPathLength = 10, topN = 10 } = {}) {
-    const sessions = await Session.find({ test: testId }).select('events status').lean();
+export async function computeNavigationPaths(testId, { maxPathLength = 10, topN = 10, sessionId, role } = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, { sessionId, role })).select('events status').lean();
 
     const pathCounts = new Map();   // serialized path → count
     const transitions = new Map();  // "from→to" → count
@@ -114,10 +117,12 @@ export async function computeNavigationPaths(testId, { maxPathLength = 10, topN 
  * @param {string} testId
  * @param {Object} options
  * @param {number} options.bucketSize - Y-coordinate bucket size in px (default: 100)
+ * @param {string} [options.sessionId] - restrict to one session
+ * @param {string} [options.role] - restrict to sessions with this participant.demographics.role
  * @returns {Object}
  */
-export async function computeScrollDepth(testId, { bucketSize = 100 } = {}) {
-    const sessions = await Session.find({ test: testId }).select('events').lean();
+export async function computeScrollDepth(testId, { bucketSize = 100, sessionId, role } = {}) {
+    const sessions = await Session.find(buildSessionQuery(testId, { sessionId, role })).select('events').lean();
 
     const maxYPerSession = []; // max Y coordinate reached per session
     const yBuckets = new Map(); // y-bucket → number of sessions that reached it
