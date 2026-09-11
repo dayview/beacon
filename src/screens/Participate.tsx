@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { connectSocket, disconnectSocket, getSocket, emitSessionEvent } from '../lib/socket';
 import { Button } from '../components/ui/Button';
+import { api } from '../lib/api';
+
+const DEFAULT_CONSENT_COPY = "This session helps improve the board's usability. While you complete the steps below, Beacon records where you click, hover, and scroll, how long you spend on each step, and whether you go back. If you provide a role below, that's stored too. This data may be used to generate insights for the test's owner. No audio or video is recorded.";
 
 interface Step {
     id: string;
@@ -22,8 +25,22 @@ export const Participate: React.FC = () => {
     // then filter analytics by who was testing (e.g. "Designer" vs "PM").
     const [hasStarted, setHasStarted] = useState(false);
     const [role, setRole] = useState('');
+    const [consentCopy, setConsentCopy] = useState(DEFAULT_CONSENT_COPY);
+    const [consentAgreed, setConsentAgreed] = useState(false);
 
     const testId = new URLSearchParams(window.location.search).get('testId');
+
+    // Fetch the owner's custom consent copy (if any) before the participant
+    // sees the pre-start screen — falls back to the fixed default on any
+    // failure so a network hiccup never blocks the consent screen itself.
+    useEffect(() => {
+        if (!testId) return;
+        api.fetchTestConsent(testId)
+            .then((data) => {
+                if (data.consentCopy) setConsentCopy(data.consentCopy);
+            })
+            .catch(() => { /* keep default copy */ });
+    }, [testId]);
 
     useEffect(() => {
         const observer = new ResizeObserver((entries) => {
@@ -76,10 +93,12 @@ export const Participate: React.FC = () => {
     }, [testId]);
 
     const handleStart = () => {
+        if (!consentAgreed) return;
         const socket = getSocket();
         const demographics = role.trim() ? { role: role.trim() } : {};
+        const consent = { agreed: true, agreedAt: new Date().toISOString() };
         const joinSession = () => {
-            socket.emit('session:join', { testId, participantId: null, demographics });
+            socket.emit('session:join', { testId, participantId: null, demographics, consent });
         };
 
         if (socket.connected) {
@@ -140,6 +159,19 @@ export const Participate: React.FC = () => {
         return (
             <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fafafa] p-large text-center">
                 <p className="text-[#050038]">You're about to participate in a usability test.</p>
+                <div className="w-full max-w-xs text-left rounded-md border border-[#050038]/10 bg-white p-4">
+                    <p className="mb-2 text-xs font-semibold text-[#050038]">Before you begin</p>
+                    <p className="text-xs text-[#050038]/70">{consentCopy}</p>
+                    <label className="mt-3 flex items-start gap-2 text-xs text-[#050038]">
+                        <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={consentAgreed}
+                            onChange={(e) => setConsentAgreed(e.target.checked)}
+                        />
+                        I agree to this data collection for this test.
+                    </label>
+                </div>
                 <div className="w-full max-w-xs text-left">
                     <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
                         Your role (optional)
@@ -151,7 +183,7 @@ export const Participate: React.FC = () => {
                         onChange={(e) => setRole(e.target.value)}
                     />
                 </div>
-                <Button variant="primary" onClick={handleStart}>Start</Button>
+                <Button variant="primary" onClick={handleStart} disabled={!consentAgreed}>Start</Button>
             </div>
         );
     }

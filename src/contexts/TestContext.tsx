@@ -22,6 +22,8 @@ export interface Test {
   participants: { current: number; target: number };
   /** Completed sessions below this are flagged as an unreliable sample size in LiveAnalytics. */
   minSampleSize?: number;
+  /** Owner-editable consent notice shown on Participate's pre-start screen; unset falls back to the fixed default copy. */
+  consentCopy?: string;
   createdAt: string;
   thumbnail?: string;
   boardUrl?: string;
@@ -96,6 +98,7 @@ function mapApiTestToTest(t: ApiTest): Test {
       target: t.settings?.maxParticipants || 10,
     },
     minSampleSize: t.settings?.minSampleSize ?? 5,
+    consentCopy: t.settings?.consentCopy || undefined,
     createdAt: t.createdAt,
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
     boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
@@ -165,6 +168,7 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       settings: {
         maxParticipants: test.participants?.target || 10,
         minSampleSize: test.minSampleSize || 5,
+        consentCopy: test.consentCopy?.trim() || undefined,
       },
       board: test.boardUrl,
     });

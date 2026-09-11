@@ -32,6 +32,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [mode, setMode] = useState<"live-session" | "solo">("live-session");
   const [targetParticipants, setTargetParticipants] = useState(20);
   const [minSampleSize, setMinSampleSize] = useState(5);
+  const [consentCopy, setConsentCopy] = useState("");
   const [boards, setBoards] = useState<ApiMiroBoard[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState("");
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
@@ -123,6 +124,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
           target: targetParticipants
         },
         minSampleSize,
+        consentCopy: consentCopy.trim() || undefined,
         boardUrl: selectedBoardId,
         tasks,
       });
@@ -138,6 +140,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         setMode("live-session");
         setTargetParticipants(20);
         setMinSampleSize(5);
+        setConsentCopy("");
         setSelectedBoardId(boards[0]?.id || "");
         setSelectedFrameIds([]);
       }, 500);
@@ -235,6 +238,21 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
               />
               <p className="mt-1 text-xs text-[#050038]/50">
                 Completed sessions below this are flagged as low-confidence in analytics.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                Consent notice (optional)
+              </label>
+              <textarea
+                className="flex w-full rounded-md border border-[#050038]/10 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-[#050038]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4262ff] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                placeholder="Leave blank to use Beacon's default consent notice, shown to participants before they start."
+                value={consentCopy}
+                onChange={(e) => setConsentCopy(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-[#050038]/50">
+                Shown to participants before they start; they must agree to continue.
               </p>
             </div>
 

@@ -35,6 +35,10 @@ const sessionSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.Mixed,
             default: {},
         },
+        consent: {
+            agreed: { type: Boolean, default: false },
+            agreedAt: { type: Date, default: null },
+        },
     },
     status: {
         type: String,

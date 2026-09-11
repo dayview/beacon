@@ -79,7 +79,7 @@ export function initSocketHandlers(io) {
         // ── Participant joins a test session ──────────────────────
         socket.on(events.SESSION_JOIN, async (data) => {
             try {
-                const { testId, participantId, demographics } = data;
+                const { testId, participantId, demographics, consent } = data;
 
                 // Validate the test exists and is active
                 const test = await Test.findById(testId).populate('board');
@@ -96,6 +96,10 @@ export function initSocketHandlers(io) {
                     participant: {
                         id: participantId || null,
                         demographics: demographics || {},
+                        consent: {
+                            agreed: !!consent?.agreed,
+                            agreedAt: consent?.agreed ? new Date(consent.agreedAt || Date.now()) : null,
+                        },
                     },
                     status: 'in_progress',
                     recording: {

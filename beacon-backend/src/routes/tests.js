@@ -103,6 +103,23 @@ router.get('/:id', auth, objectIdParam('id'), validate, async (req, res) => {
     }
 });
 
+// ── GET /api/tests/:id/consent (public, no auth) ─────────────
+// Participants have no access token — this is read before session:join,
+// exposing only what's needed for the pre-consent screen. Same trust level
+// as the testId already visible in the participant link itself.
+router.get('/:id/consent', objectIdParam('id'), validate, async (req, res) => {
+    try {
+        const test = await Test.findById(req.params.id).select('name settings.consentCopy');
+        if (!test) {
+            return res.status(404).json({ error: 'Test not found.' });
+        }
+        res.json({ name: test.name, consentCopy: test.settings?.consentCopy || null });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Test consent fetch error:`, error);
+        res.status(500).json({ error: 'Failed to fetch consent info.' });
+    }
+});
+
 // ── PATCH /api/tests/:id ─────────────────────────────────────
 router.patch(
     '/:id',

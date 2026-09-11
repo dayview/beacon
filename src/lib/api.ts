@@ -131,6 +131,10 @@ export const api = {
     delete: <T>(url: string) =>
         request<T>(url, { method: 'DELETE' }),
 
+    // Public — no auth token required; used by Participate's pre-consent screen.
+    fetchTestConsent: (testId: string) =>
+        request<{ name: string; consentCopy: string | null }>(`/api/tests/${testId}/consent`),
+
     fetchAiInsights: (testId: string) =>
         request<{ insights: ApiAIInsight[] }>(`/api/ai/insights/${testId}`),
 
@@ -207,6 +211,7 @@ export interface ApiTest {
         maxParticipants: number;
         minSampleSize: number;
         duration: number | null;
+        consentCopy: string | null;
     };
     createdAt: string;
     startedAt: string | null;

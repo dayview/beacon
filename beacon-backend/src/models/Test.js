@@ -41,6 +41,7 @@ const testSchema = new mongoose.Schema({
         maxParticipants: { type: Number, default: 10 },
         minSampleSize: { type: Number, default: 5 }, // completed sessions below this are flagged low-confidence
         duration: { type: Number, default: null }, // minutes
+        consentCopy: { type: String, default: null }, // owner-editable consent notice; null falls back to Participate's fixed default text
     },
     createdAt: { type: Date, default: Date.now },
     startedAt: { type: Date, default: null },
