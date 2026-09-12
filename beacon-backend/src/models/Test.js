@@ -42,6 +42,7 @@ const testSchema = new mongoose.Schema({
         minSampleSize: { type: Number, default: 5 }, // completed sessions below this are flagged low-confidence
         duration: { type: Number, default: null }, // minutes
         consentCopy: { type: String, default: null }, // owner-editable consent notice; null falls back to Participate's fixed default text
+        retentionDays: { type: Number, default: 90 }, // session data older than this surfaces a warning in LiveAnalytics; no automatic deletion
     },
     createdAt: { type: Date, default: Date.now },
     startedAt: { type: Date, default: null },

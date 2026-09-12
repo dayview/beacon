@@ -33,6 +33,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
   const [targetParticipants, setTargetParticipants] = useState(20);
   const [minSampleSize, setMinSampleSize] = useState(5);
   const [consentCopy, setConsentCopy] = useState("");
+  const [retentionDays, setRetentionDays] = useState(90);
   const [boards, setBoards] = useState<ApiMiroBoard[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState("");
   const [isLoadingBoards, setIsLoadingBoards] = useState(false);
@@ -125,6 +126,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         },
         minSampleSize,
         consentCopy: consentCopy.trim() || undefined,
+        retentionDays,
         boardUrl: selectedBoardId,
         tasks,
       });
@@ -141,6 +143,7 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
         setTargetParticipants(20);
         setMinSampleSize(5);
         setConsentCopy("");
+        setRetentionDays(90);
         setSelectedBoardId(boards[0]?.id || "");
         setSelectedFrameIds([]);
       }, 500);
@@ -238,6 +241,21 @@ export const TestSetupModal: React.FC<TestSetupModalProps> = ({
               />
               <p className="mt-1 text-xs text-[#050038]/50">
                 Completed sessions below this are flagged as low-confidence in analytics.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#050038]">
+                Data retention warning (days)
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={retentionDays}
+                onChange={(e) => setRetentionDays(parseInt(e.target.value) || 1)}
+              />
+              <p className="mt-1 text-xs text-[#050038]/50">
+                Session data older than this triggers a warning in analytics. Beacon doesn't delete data automatically.
               </p>
             </div>
 

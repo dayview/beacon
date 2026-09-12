@@ -268,7 +268,7 @@ router.get(
     async (req, res) => {
         try {
             const testId = req.params.testId;
-            const { totalSessions, completedSessions, completionRate, avgDuration } = await computeSessionStats(testId);
+            const { totalSessions, completedSessions, completionRate, avgDuration, oldestSessionAgeDays } = await computeSessionStats(testId);
 
             res.json({
                 testId,
@@ -277,6 +277,8 @@ router.get(
                 completionRate,
                 avgDuration,
                 minSampleSize: req.test.settings.minSampleSize,
+                oldestSessionAgeDays,
+                retentionDays: req.test.settings.retentionDays,
             });
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Session stats error:`, error);

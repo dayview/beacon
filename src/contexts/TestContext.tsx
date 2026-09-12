@@ -24,6 +24,8 @@ export interface Test {
   minSampleSize?: number;
   /** Owner-editable consent notice shown on Participate's pre-start screen; unset falls back to the fixed default copy. */
   consentCopy?: string;
+  /** Session data older than this (days) surfaces a retention warning in LiveAnalytics; no automatic deletion. */
+  retentionDays?: number;
   createdAt: string;
   thumbnail?: string;
   boardUrl?: string;
@@ -99,6 +101,7 @@ function mapApiTestToTest(t: ApiTest): Test {
     },
     minSampleSize: t.settings?.minSampleSize ?? 5,
     consentCopy: t.settings?.consentCopy || undefined,
+    retentionDays: t.settings?.retentionDays ?? 90,
     createdAt: t.createdAt,
     thumbnail: typeof t.board === 'object' ? t.board.thumbnailUrl : undefined,
     boardUrl: typeof t.board === 'object' ? t.board.miroId : (typeof t.board === 'string' ? t.board : undefined),
@@ -169,6 +172,7 @@ export const TestProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         maxParticipants: test.participants?.target || 10,
         minSampleSize: test.minSampleSize || 5,
         consentCopy: test.consentCopy?.trim() || undefined,
+        retentionDays: test.retentionDays || 90,
       },
       board: test.boardUrl,
     });

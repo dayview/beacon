@@ -69,11 +69,16 @@ export async function computeSessionStats(testId, filters = {}) {
         ) / timedSessions.length
         : 0;
 
+    const oldestSessionAgeDays = sessions.length > 0
+        ? Math.floor(Math.max(...sessions.map((s) => Date.now() - new Date(s.startedAt).getTime())) / 86400000)
+        : 0;
+
     return {
         totalSessions,
         completedSessions: completedSessions.length,
         completionRate,
         avgDuration: Math.round(avgDurationMs / 1000), // seconds
+        oldestSessionAgeDays,
     };
 }
 

@@ -896,6 +896,17 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
             </div>
           )}
 
+          {/* Data-retention notice — purely informational, since Beacon has no
+              automatic deletion pipeline; this just flags aging data for the owner. */}
+          {sessionStats && sessionStats.oldestSessionAgeDays >= sessionStats.retentionDays && (
+            <div className="mx-6 mt-4 flex items-start gap-2 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-yellow-600 mt-0.5" />
+              <p>
+                <strong>Data retention notice:</strong> some of this test's session data is over {sessionStats.retentionDays} days old. Beacon doesn't delete data automatically — consider exporting it if you no longer need it.
+              </p>
+            </div>
+          )}
+
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-6">
 

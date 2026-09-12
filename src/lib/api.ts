@@ -212,6 +212,7 @@ export interface ApiTest {
         minSampleSize: number;
         duration: number | null;
         consentCopy: string | null;
+        retentionDays: number;
     };
     createdAt: string;
     startedAt: string | null;
@@ -316,6 +317,8 @@ export interface ApiSessionStats {
     completionRate: number;
     avgDuration: number;
     minSampleSize: number;
+    oldestSessionAgeDays: number;
+    retentionDays: number;
 }
 
 export interface ApiSessionListItem {
