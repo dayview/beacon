@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Session from '../models/Session.js';
 import Test from '../models/Test.js';
 import * as events from './events.js';
+import { redactDemographics } from '../services/piiRedaction.js';
 
 /**
  * Attribute an event to a Miro frame using whatever Board.elements sync
@@ -95,7 +96,7 @@ export function initSocketHandlers(io) {
                     test: testId,
                     participant: {
                         id: participantId || null,
-                        demographics: demographics || {},
+                        demographics: redactDemographics(demographics || {}),
                         consent: {
                             agreed: !!consent?.agreed,
                             agreedAt: consent?.agreed ? new Date(consent.agreedAt || Date.now()) : null,
