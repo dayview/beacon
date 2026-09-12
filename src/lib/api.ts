@@ -135,6 +135,13 @@ export const api = {
     fetchTestConsent: (testId: string) =>
         request<{ name: string; consentCopy: string | null }>(`/api/tests/${testId}/consent`),
 
+    generateShareLink: (testId: string) =>
+        request<{ shareToken: string }>(`/api/tests/${testId}/share`, { method: 'POST' }),
+
+    // Public — no auth token required; used by SharedTestView.
+    fetchSharedStats: (testId: string, token: string) =>
+        request<ApiSharedStats>(`/api/analytics/${testId}/shared?token=${encodeURIComponent(token)}`),
+
     fetchAiInsights: (testId: string) =>
         request<{ insights: ApiAIInsight[] }>(`/api/ai/insights/${testId}`),
 
@@ -319,6 +326,14 @@ export interface ApiSessionStats {
     minSampleSize: number;
     oldestSessionAgeDays: number;
     retentionDays: number;
+}
+
+export interface ApiSharedStats {
+    name: string;
+    totalSessions: number;
+    completedSessions: number;
+    completionRate: number;
+    avgDuration: number;
 }
 
 export interface ApiSessionListItem {

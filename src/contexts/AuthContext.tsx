@@ -30,7 +30,7 @@ const DASHBOARD_PATH_RE = /^\/dashboard\/([a-f0-9]{48})\/?$/;
 
 /** Routes that manage their own identity and never need an owner session. */
 function isStandaloneRoute(pathname: string): boolean {
-    return pathname === '/miro-panel' || pathname === '/participate';
+    return pathname === '/miro-panel' || pathname === '/participate' || pathname === '/shared';
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {

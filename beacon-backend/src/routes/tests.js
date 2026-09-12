@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import Test from '../models/Test.js';
 import Session from '../models/Session.js';
 import auth from '../middleware/auth.js';
@@ -223,6 +224,30 @@ router.post('/:id/start', auth, objectIdParam('id'), validate, async (req, res) 
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Test start error:`, error);
         res.status(500).json({ error: 'Failed to start test.' });
+    }
+});
+
+// ── POST /api/tests/:id/share ─────────────────────────────────
+// Generates (or rotates) a read-only share token for this test. Calling
+// this again invalidates any previously issued link — that's the revoke
+// mechanism, no separate revoke endpoint needed.
+router.post('/:id/share', auth, objectIdParam('id'), validate, async (req, res) => {
+    try {
+        const shareToken = crypto.randomBytes(16).toString('hex');
+        const test = await Test.findOneAndUpdate(
+            { _id: req.params.id, researcher: req.user._id },
+            { $set: { shareToken } },
+            { new: true }
+        );
+
+        if (!test) {
+            return res.status(404).json({ error: 'Test not found or access denied.' });
+        }
+
+        res.json({ shareToken });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Test share error:`, error);
+        res.status(500).json({ error: 'Failed to generate share link.' });
     }
 });
 

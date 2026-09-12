@@ -18,8 +18,9 @@ const Settings = lazy(() => import("../screens/Settings").then((m) => ({ default
 const Participate = lazy(() => import("../screens/Participate").then((m) => ({ default: m.Participate })));
 const MiroPanel = lazy(() => import("../screens/MiroPanel").then((m) => ({ default: m.MiroPanel })));
 const Templates = lazy(() => import("../screens/Templates").then((m) => ({ default: m.Templates })));
+const SharedTestView = lazy(() => import("../screens/SharedTestView").then((m) => ({ default: m.SharedTestView })));
 
-type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate";
+type Screen = "dashboard" | "analytics" | "comparison" | "boards" | "board-canvas" | "templates" | "settings" | "participate" | "shared";
 
 function AppLoadingFallback() {
   return (
@@ -46,7 +47,11 @@ function AppContent() {
   }
 
   const { isAuthenticated, isLoading, logout, refreshUser } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<Screen>(window.location.pathname === '/participate' ? "participate" : "dashboard");
+  const [currentScreen, setCurrentScreen] = useState<Screen>(
+    window.location.pathname === '/participate' ? "participate"
+      : window.location.pathname === '/shared' ? "shared"
+        : "dashboard"
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeBoardName, setActiveBoardName] = useState("");
   const [activeBoardId, setActiveBoardId] = useState("");
@@ -113,6 +118,14 @@ function AppContent() {
     return (
       <Suspense fallback={<AppLoadingFallback />}>
         <Participate />
+      </Suspense>
+    );
+  }
+
+  if (currentScreen === 'shared') {
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        <SharedTestView />
       </Suspense>
     );
   }

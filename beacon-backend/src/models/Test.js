@@ -48,6 +48,11 @@ const testSchema = new mongoose.Schema({
     startedAt: { type: Date, default: null },
     endedAt: { type: Date, default: null },
     isTestData: { type: Boolean, default: false, index: true },
+    // Read-only viewer credential, separate from the owner's own accessToken —
+    // grants no write access and only exposes summary stats (see
+    // GET /api/analytics/:testId/shared). Null until the owner generates one;
+    // regenerating rotates it, invalidating any previously shared link.
+    shareToken: { type: String, default: null },
 });
 
 // ── Indexes ──────────────────────────────────────────────────

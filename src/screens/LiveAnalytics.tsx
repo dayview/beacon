@@ -23,7 +23,8 @@ import {
   CheckCircle,
   Clock,
   Users,
-  Download
+  Download,
+  Share2
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { motion, AnimatePresence } from "motion/react";
@@ -637,6 +638,18 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     }
   };
 
+  const handleShareLink = async () => {
+    try {
+      const { shareToken } = await api.generateShareLink(selectedTest.id);
+      const link = `${window.location.origin}/shared?testId=${selectedTest.id}&token=${shareToken}`;
+      await navigator.clipboard.writeText(link);
+      toast.success('Read-only link copied to clipboard!');
+      toast.info('Anyone with this link can view summary stats for this test, no sign-in needed. Sharing again generates a new link and invalidates the old one.', { duration: 6000 });
+    } catch {
+      toast.error("Couldn't generate a share link. Please try again.");
+    }
+  };
+
   const getStatusBadge = () => {
     const statusConfig: Record<string, { label: string; variant: any }> = {
       live: { label: 'Live', variant: 'live' },
@@ -785,6 +798,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                 <span className="text-sm text-[#050038]/60">{liveParticipants} participants</span>
               </div>
               <div className="flex items-center gap-4 text-[#050038]/60">
+                <button onClick={handleShareLink} className="hover:text-[#050038]" title="Copy read-only share link" aria-label="Copy read-only share link">
+                  <Share2 size={20} />
+                </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="hover:text-[#050038]" title="Export data" aria-label="Export data">

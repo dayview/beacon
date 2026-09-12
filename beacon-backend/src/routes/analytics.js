@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Session from '../models/Session.js';
 import Board from '../models/Board.js';
+import Test from '../models/Test.js';
 import auth from '../middleware/auth.js';
 import { authorizeTestOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
@@ -283,6 +284,42 @@ router.get(
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Session stats error:`, error);
             res.status(500).json({ error: 'Failed to compute session stats.' });
+        }
+    }
+);
+
+// ── GET /api/analytics/:testId/shared (public, no auth) ──────
+// The read-only counterpart to the owner's session-stats — gated by a
+// per-test shareToken (see POST /api/tests/:id/share) instead of a bearer
+// token. Deliberately narrower than session-stats: no minSampleSize or
+// retentionDays, since those are internal owner-facing thresholds, not
+// something a read-only viewer needs.
+router.get(
+    '/:testId/shared',
+    objectIdParam('testId'),
+    validate,
+    async (req, res) => {
+        try {
+            const { token } = req.query;
+            const test = await Test.findById(req.params.testId).select('name shareToken');
+
+            if (!test || !test.shareToken || !token || test.shareToken !== token) {
+                return res.status(404).json({ error: 'Shared link not found or no longer valid.' });
+            }
+
+            const { totalSessions, completedSessions, completionRate, avgDuration } =
+                await computeSessionStats(req.params.testId);
+
+            res.json({
+                name: test.name,
+                totalSessions,
+                completedSessions,
+                completionRate,
+                avgDuration,
+            });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Shared stats error:`, error);
+            res.status(500).json({ error: 'Failed to load shared analytics.' });
         }
     }
 );
