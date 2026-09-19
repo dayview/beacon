@@ -1,6 +1,7 @@
 import Session from '../models/Session.js';
 import Test from '../models/Test.js';
 import { buildSessionQuery } from './analyticsFilters.js';
+import { SECTION_OUTCOMES } from '../constants/sectionOutcomes.js';
 
 /**
  * Section Insights Service
@@ -35,20 +36,26 @@ import { buildSessionQuery } from './analyticsFilters.js';
  * exploration doesn't capture, so this never guesses confusion from
  * density alone.
  *
+ * A third signal, idle time, is derived (not separately captured) for
+ * free-exploration sections: when two consecutive events in a session land
+ * on the same frame, a gap between them longer than IDLE_GAP_THRESHOLD_MS
+ * counts as an idle span for that section. It only ever demotes an
+ * otherwise-"normal" free-exploration section to the ambiguous
+ * `prolonged_dwell` outcome — the same "flagged for review, not guessed"
+ * treatment high dwell gets in guided mode — since a long unexplained pause
+ * is exactly the kind of dwell-like signal free exploration otherwise has
+ * no way to see (it has no dwellMs at all, only click/hover counts).
+ *
  * What this does NOT claim to use, because the app doesn't capture it:
- * zoom-repeat, idle time, or reading order. Bowei named all three as
+ * zoom-repeat or reading order. Bowei named these alongside idle time as
  * useful signals — they're not fabricated here.
  */
 
-const OUTCOMES = {
-    SKIPPED: 'skipped',
-    INSUFFICIENT_ATTENTION: 'insufficient_attention',
-    PROLONGED_DWELL: 'prolonged_dwell',
-    LIKELY_CONFUSION: 'likely_confusion',
-    LIKELY_HIGH_INTEREST: 'likely_high_interest',
-    REPEATED_NAVIGATION: 'repeated_navigation',
-    NORMAL: 'normal',
-};
+const OUTCOMES = SECTION_OUTCOMES;
+
+// A gap between two same-frame events shorter than this could just be
+// normal reading/clicking cadence; longer implies a genuine pause.
+const IDLE_GAP_THRESHOLD_MS = 15000;
 
 function average(values) {
     return values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -73,7 +80,7 @@ function round2(n) {
  * it never claims confusion: without dwell or backtracking data there's no
  * way to distinguish "confused" from "not engaged" beyond low density.
  */
-function classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity }) {
+function classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity, avgIdleMs, medianIdleMs }) {
     if (avgInteractionDensity === null || medianInteractionDensity === null || medianInteractionDensity === 0) {
         return {
             outcome: OUTCOMES.NORMAL,
@@ -102,6 +109,19 @@ function classifyByInteractionDensity({ avgInteractionDensity, medianInteraction
         };
     }
 
+    const hasIdleSignal = avgIdleMs !== null && medianIdleMs !== null && medianIdleMs > 0;
+    if (hasIdleSignal) {
+        const idleRatio = avgIdleMs / medianIdleMs;
+        if (idleRatio > 1.5) {
+            const pctAbove = Math.round((idleRatio - 1) * 100);
+            return {
+                outcome: OUTCOMES.PROLONGED_DWELL,
+                confidence: 0.3,
+                explanation: `Participants paused on this section for stretches averaging ${Math.round(avgIdleMs / 1000)}s without any click or hover activity — ${pctAbove}% longer than the test's typical idle gap. Could be reading or thinking, or could mean they stepped away; flagged for your review rather than guessed.`,
+            };
+        }
+    }
+
     return {
         outcome: OUTCOMES.NORMAL,
         confidence: 0.4,
@@ -121,6 +141,8 @@ function classifySection({
     backtrackCount,
     avgInteractionDensity,
     medianInteractionDensity,
+    avgIdleMs,
+    medianIdleMs,
 }) {
     if (reachedRatio === 0) {
         return {
@@ -141,7 +163,7 @@ function classifySection({
     const hasDwellSignal = avgDwellMs !== null && medianDwellMs !== null && medianDwellMs > 0;
 
     if (!hasDwellSignal) {
-        return classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity });
+        return classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity, avgIdleMs, medianIdleMs });
     }
 
     const dwellRatio = avgDwellMs / medianDwellMs;
@@ -219,6 +241,9 @@ export async function generateSectionInsights(testId, filters = {}) {
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     const boardFrames = (test.board?.elements || []).filter((e) => e.type === 'frame');
+    const overridesByFrameId = new Map(
+        (test.sectionOverrides || []).map((o) => [o.frameId, o])
+    );
 
     const mode = steps.length > 0 ? 'guided' : 'free';
     const sectionIds = mode === 'guided'
@@ -245,14 +270,18 @@ export async function generateSectionInsights(testId, filters = {}) {
         dwellSamples: [],
         backtrackCount: 0,
         interactionDensities: [],
+        idleSamples: [],
     }]));
 
     for (const session of usableSessions) {
         const sessionId = String(session._id);
         const perFrameInteractionCount = new Map();
+        const sortedEvents = [...(session.events || [])]
+            .filter((e) => e.frameId)
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        for (const event of session.events || []) {
-            if (!event.frameId || !stats.has(event.frameId)) continue;
+        for (const event of sortedEvents) {
+            if (!stats.has(event.frameId)) continue;
             const s = stats.get(event.frameId);
             s.reachedSessionIds.add(sessionId);
 
@@ -274,6 +303,18 @@ export async function generateSectionInsights(testId, filters = {}) {
         for (const [frameId, count] of perFrameInteractionCount) {
             stats.get(frameId)?.interactionDensities.push(count);
         }
+
+        // Idle gaps — only between consecutive events that land on the same
+        // frame; a gap across a frame change is navigation, not idling.
+        for (let i = 1; i < sortedEvents.length; i++) {
+            const prev = sortedEvents[i - 1];
+            const curr = sortedEvents[i];
+            if (prev.frameId !== curr.frameId || !stats.has(curr.frameId)) continue;
+            const gap = new Date(curr.timestamp) - new Date(prev.timestamp);
+            if (gap >= IDLE_GAP_THRESHOLD_MS) {
+                stats.get(curr.frameId).idleSamples.push(gap);
+            }
+        }
     }
 
     // Baseline dwell for this test — sections are judged relative to their
@@ -292,6 +333,14 @@ export async function generateSectionInsights(testId, filters = {}) {
         .map(average);
     const medianInteractionDensity = sectionAvgDensities.length > 0 ? median(sectionAvgDensities) : null;
 
+    // Same idea for idle gaps — free-exploration sections' only source of
+    // an idle signal is other sections in this same test.
+    const sectionAvgIdles = sectionIds
+        .map((id) => stats.get(id).idleSamples)
+        .filter((samples) => samples.length > 0)
+        .map(average);
+    const medianIdleMs = sectionAvgIdles.length > 0 ? median(sectionAvgIdles) : null;
+
     const sections = sectionIds.map((frameId, order) => {
         const s = stats.get(frameId);
         const reachedCount = s.reachedSessionIds.size;
@@ -300,6 +349,7 @@ export async function generateSectionInsights(testId, filters = {}) {
         const avgInteractionDensity = s.interactionDensities.length > 0
             ? round2(average(s.interactionDensities))
             : null;
+        const avgIdleMs = s.idleSamples.length > 0 ? Math.round(average(s.idleSamples)) : null;
 
         const classification = classifySection({
             reachedRatio,
@@ -308,7 +358,11 @@ export async function generateSectionInsights(testId, filters = {}) {
             backtrackCount: s.backtrackCount,
             avgInteractionDensity,
             medianInteractionDensity,
+            avgIdleMs,
+            medianIdleMs,
         });
+
+        const override = overridesByFrameId.get(frameId) || null;
 
         return {
             frameId,
@@ -320,7 +374,15 @@ export async function generateSectionInsights(testId, filters = {}) {
             avgDwellMs,
             backtrackCount: s.backtrackCount,
             avgInteractionDensity,
+            avgIdleMs,
             ...classification,
+            override: override
+                ? {
+                    outcome: override.outcome,
+                    note: override.note,
+                    overriddenAt: override.overriddenAt,
+                }
+                : null,
         };
     });
 

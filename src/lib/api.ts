@@ -176,6 +176,17 @@ export const api = {
     fetchSectionInsights: (testId: string, query = '') =>
         request<ApiSectionInsights>(`/api/analytics/${testId}/sections${query}`),
 
+    setSectionOverride: (testId: string, frameId: string, outcome: ApiSectionOutcome, note?: string) =>
+        request<{ frameId: string; outcome: ApiSectionOutcome; note: string | null }>(
+            `/api/analytics/${testId}/sections/${frameId}/override`,
+            { method: 'PATCH', body: JSON.stringify({ outcome, note: note || null }) }
+        ),
+
+    clearSectionOverride: (testId: string, frameId: string) =>
+        request<{ frameId: string }>(`/api/analytics/${testId}/sections/${frameId}/override`, {
+            method: 'DELETE',
+        }),
+
     fetchSessionList: (testId: string) =>
         request<{ sessions: ApiSessionListItem[] }>(`/api/analytics/${testId}/sessions`),
 
@@ -402,9 +413,11 @@ export interface ApiSectionInsight {
     avgDwellMs: number | null;
     backtrackCount: number;
     avgInteractionDensity: number | null;
+    avgIdleMs: number | null;
     outcome: ApiSectionOutcome;
     confidence: number; // 0-1
     explanation: string;
+    override: { outcome: ApiSectionOutcome; note: string | null; overriddenAt: string } | null;
 }
 
 export interface ApiSectionInsights {

@@ -42,6 +42,7 @@ import { useTests } from "../contexts/TestContext";
 import { toast } from "sonner";
 import { api, ApiHeatmap, ApiAIInsight, ApiAnalyticsSummary, ApiPrediction, ApiSessionStats, ApiSectionInsight, ApiSectionOutcome, ApiSessionListItem } from "../lib/api";
 import { HeatmapCanvas } from "../components/HeatmapCanvas";
+import { SectionOverrideControl } from "../components/SectionOverrideControl";
 import { joinTestRoom, onParticipantEvent, onParticipantJoined, onParticipantLeft, onSampleMilestone } from "../lib/socket";
 
 interface LiveAnalyticsProps {
@@ -175,7 +176,8 @@ export const getPeakActivityCoords = (data: { x: number; y: number }[], width: n
 // ── LiveAnalytics Component ─────────────────────────────────
 export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate }) => {
   const { selectedTest, changeTestStatus } = useTests();
-  const [activeTab, setActiveTab] = useState<'overview' | 'heatmap' | 'sections' | 'flow' | 'ai'>('overview');
+  const [activeTab, setActiveTab] = useState<'findings' | 'heatmap'>('findings');
+  const [showAllSections, setShowAllSections] = useState(false);
   const [highlightZone, setHighlightZone] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [showAiOnBoard, setShowAiOnBoard] = useState(false);
@@ -225,7 +227,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
 
   const boardRef = useRef<HTMLDivElement>(null);
   const hasFetchedHeatmap = useRef(false);
-  const hasFetchedAi = useRef(false);
   const hasFetchedFlow = useRef(false);
   const hasFetchedSections = useRef(false);
   const CANVAS_WIDTH_PX = 1200;
@@ -511,34 +512,31 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
       }
     });
     fetchSessionList();
-    // Eager-load section labels (used by the section filter dropdown)
-    // regardless of which tab is active; marks the sections tab as
-    // already-fetched so the lazy-load effect below doesn't repeat it.
+    // The Findings view merges what used to be separate Overview/Sections/
+    // Flow/AI tabs into one page, so their data all needs to be eager now —
+    // mark each as already-fetched so the lazy-load effect below doesn't
+    // repeat it once Heatmap is the only tab left with lazy loading.
     hasFetchedSections.current = true;
     fetchSectionInsights();
-  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap, fetchSessionList, fetchSectionInsights]); // Note: React Hook useEffect has a missing dependency: 'fetchPredictiveHeatmap'. Either include it or remove the dependency array. But Since it's ref controlled, it's fine.
+    hasFetchedFlow.current = true;
+    fetchFlow();
+  }, [selectedTest, fetchAiInsights, fetchHeatmap, handleGenerateHeatmap, fetchSessionList, fetchSectionInsights, fetchFlow]); // Note: React Hook useEffect has a missing dependency: 'fetchPredictiveHeatmap'. Either include it or remove the dependency array. But Since it's ref controlled, it's fine.
 
-  // ── Lazy-load tab data ────────────────────────────────
+  // ── Lazy-load Heatmap (the only remaining tab not eager-fetched) ──
   useEffect(() => {
-    if (activeTab === 'ai' && !hasFetchedAi.current && !aiLoading) {
-      hasFetchedAi.current = true;
-      fetchAiInsights();
-    }
-    if (activeTab === 'flow' && !hasFetchedFlow.current && !flowLoading) {
-      hasFetchedFlow.current = true;
-      fetchFlow();
-    }
     if (activeTab === 'heatmap' && !hasFetchedHeatmap.current && !heatmapLoading) {
       hasFetchedHeatmap.current = true;
       fetchHeatmap();
     }
-  }, [activeTab, aiLoading, fetchAiInsights, flowLoading, fetchFlow, heatmapLoading, fetchHeatmap]);
+  }, [activeTab, heatmapLoading, fetchHeatmap]);
 
   // ── Refetch filterable views when a filter changes ─────────────
   useEffect(() => {
     if (!hasFetchedOnMount.current) return; // wait for the initial load above
-    if (activeTab === 'flow') fetchFlow();
-    if (activeTab === 'sections') fetchSectionInsights();
+    if (activeTab === 'findings') {
+      fetchFlow();
+      fetchSectionInsights();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSessionId, filterRole, filterSectionId]);
 
@@ -660,6 +658,77 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
     };
     const config = statusConfig[selectedTest.status] || statusConfig.draft;
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  // ── Findings prioritization ─────────────────────────────
+  // The owner's own override (if any) decides which bucket a section falls
+  // into — relabeling a section in or out of "likely_confusion" /
+  // "repeated_navigation" moves it in or out of "Needs your attention".
+  const FLAGGED_OUTCOMES: ApiSectionOutcome[] = ['likely_confusion', 'repeated_navigation'];
+  const flaggedSections = sectionInsights
+    .filter((s) => FLAGGED_OUTCOMES.includes(s.override?.outcome ?? s.outcome))
+    .sort((a, b) => b.confidence - a.confidence);
+  const flaggedFrameIds = new Set(flaggedSections.map((s) => s.frameId));
+  const restSections = sectionInsights.filter((s) => !flaggedFrameIds.has(s.frameId));
+
+  const renderSectionCard = (section: ApiSectionInsight) => {
+    const meta = SECTION_OUTCOME_META[section.outcome];
+    const overrideMeta = section.override ? SECTION_OUTCOME_META[section.override.outcome] : null;
+    return (
+      <div key={section.frameId} className="rounded-lg bg-white border border-[#050038]/10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <span className="text-xs font-mono text-[#050038]/40">#{section.order + 1}</span>
+            <span className="ml-2 text-sm font-medium text-[#050038]">{section.label}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {overrideMeta ? (
+              <>
+                {overrideMeta.label !== meta.label && (
+                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold line-through opacity-50", meta.badgeClass)}>
+                    {meta.label}
+                  </span>
+                )}
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", overrideMeta.badgeClass)}>
+                  {overrideMeta.label}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", meta.badgeClass)}>
+                  {meta.label}
+                </span>
+                <span className="text-xs text-[#050038]/40">{Math.round(section.confidence * 100)}% confidence</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#050038]/60">
+          <span>Reached: {section.reachedCount}/{section.totalSessions} ({Math.round(section.reachedRatio * 100)}%)</span>
+          <span>Avg dwell: {formatMs(section.avgDwellMs)}</span>
+          {section.backtrackCount > 0 && <span>Backtracks: {section.backtrackCount}</span>}
+          {section.avgInteractionDensity !== null && <span>Avg interactions: {section.avgInteractionDensity}/session</span>}
+          {section.avgIdleMs !== null && <span>Avg idle gap: {formatMs(section.avgIdleMs)}</span>}
+        </div>
+        <p className="mt-2 text-sm text-[#050038]/70">{section.explanation}</p>
+        {section.override?.note && (
+          <p className="mt-1 text-sm text-[#050038]/70 italic">Your note: {section.override.note}</p>
+        )}
+        {selectedTest && (
+          <SectionOverrideControl
+            testId={selectedTest.id}
+            frameId={section.frameId}
+            autoOutcome={section.outcome}
+            override={section.override}
+            onSaved={(override) => {
+              setSectionInsights((prev) =>
+                prev.map((s) => (s.frameId === section.frameId ? { ...s, override } : s))
+              );
+            }}
+          />
+        )}
+      </div>
+    );
   };
 
   return (
@@ -829,29 +898,24 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
           {/* Tab Navigation */}
           <div className="px-6 border-b border-[#050038]/10">
             <div className="flex gap-6">
-              {['Overview', 'Heatmap', 'Sections', 'Flow', 'AI Insights'].map((tab) => {
-                const id = tab.toLowerCase().split(' ')[0] as any;
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(id)}
-                    className={cn(
-                      "py-3 text-sm font-semibold transition-colors border-b-2",
-                      activeTab === id ? "border-[#4262ff] text-[#4262ff]" : "border-transparent text-[#050038]/60 hover:text-[#050038]"
-                    )}
-                  >
-                    {tab === 'AI Insights' && <Lightbulb size={14} className="inline mr-1 mb-0.5" />}
-                    {tab === 'Sections' && <Layers size={14} className="inline mr-1 mb-0.5" />}
-                    {tab}
-                  </button>
-                );
-              })}
+              {(['findings', 'heatmap'] as const).map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={cn(
+                    "py-3 text-sm font-semibold transition-colors border-b-2",
+                    activeTab === id ? "border-[#4262ff] text-[#4262ff]" : "border-transparent text-[#050038]/60 hover:text-[#050038]"
+                  )}
+                >
+                  {id === 'findings' ? 'Findings' : 'Heatmap'}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Analytics filters — narrows Overview/Sections/Flow together.
-              Not shown on Heatmap/AI Insights, which aren't filterable yet. */}
-          {(activeTab === 'overview' || activeTab === 'sections' || activeTab === 'flow') && (
+          {/* Analytics filters — narrows the Findings view. Not shown on
+              Heatmap, which isn't filterable yet. */}
+          {activeTab === 'findings' && (
             <div className="flex flex-wrap items-center gap-3 border-b border-[#050038]/10 px-6 py-3">
               <span className="text-xs font-semibold uppercase tracking-wide text-[#050038]/40">Filter</span>
               <select
@@ -877,19 +941,17 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
-              {activeTab !== 'sections' && (
-                <select
-                  className="h-8 rounded-md border border-[#050038]/10 bg-white px-2 text-xs text-[#050038]"
-                  value={filterSectionId}
-                  onChange={(e) => setFilterSectionId(e.target.value)}
-                  disabled={sectionInsights.length === 0}
-                >
-                  <option value="">All sections</option>
-                  {sectionInsights.map((s) => (
-                    <option key={s.frameId} value={s.frameId}>{s.label}</option>
-                  ))}
-                </select>
-              )}
+              <select
+                className="h-8 rounded-md border border-[#050038]/10 bg-white px-2 text-xs text-[#050038]"
+                value={filterSectionId}
+                onChange={(e) => setFilterSectionId(e.target.value)}
+                disabled={sectionInsights.length === 0}
+              >
+                <option value="">All sections</option>
+                {sectionInsights.map((s) => (
+                  <option key={s.frameId} value={s.frameId}>{s.label}</option>
+                ))}
+              </select>
               {(filterSessionId || filterRole || filterSectionId) && (
                 <button
                   className="text-xs font-semibold text-[#4262ff] hover:underline"
@@ -926,8 +988,8 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-6">
 
-            {/* ═══ OVERVIEW TAB ═══ */}
-            {activeTab === 'overview' && (
+            {/* ═══ FINDINGS VIEW ═══ */}
+            {activeTab === 'findings' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 {analyticsLoading ? (
                   <div className="flex items-center justify-center py-12">
@@ -982,78 +1044,11 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                       )}
                     </div>
 
-                    {/* Session Info */}
-                    <div>
-                      <h3 className="text-base font-semibold text-[#050038] mb-3">Session Overview</h3>
-                      <div className="bg-[#fafafa] p-4 rounded-lg space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Total Sessions:</span>
-                          <span className="font-semibold text-[#050038]">{statsSessions}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Participants:</span>
-                          <span className="font-semibold text-[#050038]">{selectedTest.participants.current} / {selectedTest.participants.target}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[#050038]/60">Type:</span>
-                          <span className="font-semibold text-[#050038] capitalize">{selectedTest.type.replace('-', ' ')}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* First-Click Analysis */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <h3 className="text-base font-semibold text-[#050038]">Element Analysis</h3>
-                        <Info size={14} className="text-[#050038]/60" />
-                      </div>
-                      {firstClickData.length > 0 ? (
-                        <div className="h-48 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart layout="vertical" data={firstClickData} margin={{ left: 0, right: 30 }}>
-                              <XAxis type="number" hide />
-                              <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12, fill: '#050038' }} axisLine={false} tickLine={false} />
-                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(5,0,56,0.1)' }} />
-                              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                                {firstClickData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <div className="bg-[#fafafa] p-4 rounded-lg text-center">
-                          <p className="text-sm text-[#050038]/60">No interaction data yet. Start a test session to collect data.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Confusion Zones */}
-                    {analyticsData?.confusion && analyticsData.confusion.zones.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <h3 className="text-base font-semibold text-[#050038]">Confusion Zones</h3>
-                          <AlertTriangle size={16} className="text-[#ffd02f]" />
-                        </div>
-                        {analyticsData.confusion.zones.map((zone, i) => (
-                          <div key={i} className="bg-[#ffd02f]/10 border border-[#ffd02f] p-4 rounded-lg mb-2">
-                            <p className="font-medium text-[#050038]">{zone.element}: {zone.details}</p>
-                            <p className="text-xs text-[#050038]/80 mt-1">Severity: {zone.severity?.toFixed(2) ?? '0.00'}</p>
-                            <button
-                              onClick={() => setHighlightZone(!highlightZone)}
-                              className="mt-3 text-sm font-semibold text-[#050038] underline decoration-[#ffd02f] hover:text-[#050038]/80"
-                            >
-                              {highlightZone ? "Hide on board" : "Highlight on board"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Simulation CTA Replacement */}
+                    {/* Simulation CTA — shown up top when there's no data at
+                        all yet, since every finding below would otherwise
+                        just be an empty state. */}
                     {statsSessions === 0 && selectedTest.type !== 'live-session' && (
-                      <div className="bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/20 p-6 rounded-xl text-center mt-6">
+                      <div className="bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/20 p-6 rounded-xl text-center">
                         <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500">
                           <Lightbulb size={20} className="text-white" />
                         </div>
@@ -1087,137 +1082,309 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
                         )}
                       </div>
                     )}
+
+                    {/* Needs your attention — the prioritized, actionable
+                        core: sections the classifier flagged as likely
+                        confusion or repeated navigation (or that the owner
+                        has relabeled into one of those outcomes), sorted by
+                        confidence, plus legacy confusion-zone callouts. */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-base font-semibold text-[#050038]">Needs your attention</h3>
+                        <AlertTriangle size={16} className="text-[#ffd02f]" />
+                      </div>
+                      {!sectionsLoading && sectionInsights.length > 0 && (
+                        <p className="text-xs text-[#050038]/40 mb-3">
+                          {sectionsMode === 'guided'
+                            ? 'Guided walkthrough — sections are the tasks you defined for this test.'
+                            : 'Free exploration — sections are this board\'s Miro frames.'}
+                        </p>
+                      )}
+                      {sectionsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 size={20} className="animate-spin text-[#4262ff]" />
+                          <span className="ml-2 text-sm text-[#050038]/60">Loading section insights...</span>
+                        </div>
+                      ) : flaggedSections.length === 0 && (!analyticsData?.confusion || analyticsData.confusion.zones.length === 0) ? (
+                        <div className="bg-[#fafafa] p-6 rounded-xl text-center">
+                          <p className="text-sm text-[#050038]/60">
+                            {sectionInsights.length > 0
+                              ? 'Nothing flagged yet — no sections show signs of confusion or repeated navigation.'
+                              : 'Section insights will appear once participants have completed sessions on a board with defined tasks or frames.'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {flaggedSections.map(renderSectionCard)}
+                          {analyticsData?.confusion?.zones.map((zone, i) => (
+                            <div key={`zone-${i}`} className="bg-[#ffd02f]/10 border border-[#ffd02f] p-4 rounded-lg">
+                              <p className="font-medium text-[#050038]">{zone.element}: {zone.details}</p>
+                              <p className="text-xs text-[#050038]/80 mt-1">Severity: {zone.severity?.toFixed(2) ?? '0.00'}</p>
+                              <button
+                                onClick={() => setHighlightZone(!highlightZone)}
+                                className="mt-3 text-sm font-semibold text-[#050038] underline decoration-[#ffd02f] hover:text-[#050038]/80"
+                              >
+                                {highlightZone ? "Hide on board" : "Highlight on board"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AI-generated insights */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-base font-semibold text-[#050038]">AI-generated insights</h3>
+                        <Lightbulb size={16} className="text-[#ffd02f]" />
+                      </div>
+                      <div className="space-y-6">
+                        <Button
+                          onClick={handleGenerateInsights}
+                          disabled={aiLoading}
+                          className="w-full justify-center"
+                        >
+                          {aiLoading ? (
+                            <><Loader2 size={14} className="mr-2 animate-spin" /> Generating insights...</>
+                          ) : (
+                            <><Lightbulb size={14} className="mr-2" /> Generate AI Insights</>
+                          )}
+                        </Button>
+
+                        {aiLoading ? (
+                          <div className="space-y-4">
+                            <div className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm animate-pulse">
+                              <div className="flex items-start justify-between mb-4">
+                                <div className="h-6 w-6 bg-[#050038]/10 rounded-full"></div>
+                                <div className="h-4 w-16 bg-[#050038]/10 rounded"></div>
+                              </div>
+                              <div className="h-4 w-full bg-[#050038]/10 rounded mb-2"></div>
+                              <div className="h-4 w-3/4 bg-[#050038]/10 rounded mb-6"></div>
+                              <div className="h-3 w-32 bg-[#050038]/10 rounded mb-3"></div>
+                              <div className="space-y-2 mb-6">
+                                <div className="h-3 w-5/6 bg-[#050038]/10 rounded"></div>
+                                <div className="h-3 w-4/6 bg-[#050038]/10 rounded"></div>
+                              </div>
+                              <div className="h-5 w-20 bg-[#050038]/10 rounded-full"></div>
+                            </div>
+                          </div>
+                        ) : aiError ? (
+                          <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-center">
+                            <AlertTriangle size={32} className="mx-auto mb-4 text-red-500" />
+                            <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
+                            <p className="text-sm text-red-600 mb-4">{aiError}</p>
+                            {aiError?.includes('Settings') ? (
+                              <Button onClick={() => {
+                                if (onNavigate) {
+                                  onNavigate('settings');
+                                } else {
+                                  window.location.href = '/settings';
+                                }
+                              }} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                                <Settings size={14} className="mr-2" /> Go to Settings
+                              </Button>
+                            ) : (
+                              <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
+                                <RefreshCw size={14} className="mr-2" /> Retry Analysis
+                              </Button>
+                            )}
+                          </div>
+                        ) : aiInsights.length === 0 ? (
+                          <div className="bg-[#fafafa] p-8 rounded-xl text-center">
+                            <Lightbulb size={32} className="mx-auto mb-4 text-[#ffd02f]" />
+                            <h3 className="text-base font-semibold text-[#050038] mb-2">No insights yet</h3>
+                            <p className="text-sm text-[#050038]/60">
+                              Click "Generate AI Insights" to analyze your test sessions.
+                              The AI will review participant behavior and provide actionable recommendations.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {/* Real insight cards */}
+                        {aiInsights.map((insight, idx) => (
+                          <div key={insight._id || idx} className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm">
+                            <div className="flex items-start justify-between mb-4">
+                              <Lightbulb className="text-[#ffd02f] flex-shrink-0" size={24} />
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-mono text-[#050038]/40">{insight.provider}</span>
+                                  {insight.cost > 0 && (
+                                    <span className="text-xs text-[#050038]/40">${insight.cost.toFixed(4)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {insight.lowConfidence && (
+                              <div className="mb-4 flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800 border border-yellow-200">
+                                <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                                <p><strong>Low Confidence:</strong> The AI may have referenced elements that are not explicitly text on your board. Please verify the findings manually.</p>
+                              </div>
+                            )}
+                            <p className="text-sm text-[#050038]/70 leading-relaxed mb-4">{insight.insights.summary}</p>
+                            {insight.insights.patterns.length > 0 && (
+                              <div className="mb-4">
+                                <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Patterns detected:</span>
+                                <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
+                                  {insight.insights.patterns.map((p, i) => <li key={i}>{p}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {insight.insights.recommendations.length > 0 && (
+                              <div className="mb-4">
+                                <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Recommendations:</span>
+                                <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
+                                  {insight.insights.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 mt-3">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-semibold",
+                                insight.insights.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+                                  insight.insights.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
+                                    'bg-gray-100 text-gray-700'
+                              )}>
+                                {insight.insights.sentiment}
+                              </span>
+                              <span className="text-xs text-[#050038]/40">
+                                {new Date(insight.generatedAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-4">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => { setShowAiOnBoard(!showAiOnBoard); toast.info(showAiOnBoard ? 'Insight hidden from board' : 'Insight shown on board'); }}
+                              >
+                                {showAiOnBoard ? 'Hide from board' : 'Show on board'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Navigation flow */}
+                    <div>
+                      <h3 className="text-base font-semibold text-[#050038] mb-1">Navigation Flow</h3>
+                      <p className="text-sm text-[#050038]/60 mb-4">User navigation paths through the prototype</p>
+                      {flowLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 size={20} className="animate-spin text-[#4262ff]" />
+                          <span className="ml-2 text-sm text-[#050038]/60">Loading flow data...</span>
+                        </div>
+                      ) : flowData.length > 0 ? (
+                        <div className="space-y-3">
+                          {flowData.map((flow, i) => (
+                            <div key={i}>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 rounded-lg bg-white border border-[#050038]/10 p-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium text-[#050038]">{flow.path.join(' → ')}</span>
+                                    <span className="text-sm font-bold text-[#4262ff]">{flow.percentage}%</span>
+                                  </div>
+                                  <div className="mt-2 h-2 rounded-full bg-[#050038]/10">
+                                    <div className="h-full rounded-full bg-[#4262ff] transition-all" style={{ width: `${flow.percentage}%` }} />
+                                  </div>
+                                  <span className="text-xs text-[#050038]/40 mt-1 block">{flow.count} sessions</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-[#fafafa] p-8 rounded-xl text-center">
+                          <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
+                          <h3 className="text-base font-semibold text-[#050038] mb-2">No flow data yet</h3>
+                          <p className="text-sm text-[#050038]/60">
+                            Flow analysis will appear after participants complete test sessions.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="bg-[#fafafa] p-4 rounded-lg mt-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Target size={14} className="text-[#4262ff]" />
+                          <span className="text-sm font-semibold text-[#050038]">Key Insight</span>
+                        </div>
+                        <p className="text-sm text-[#050038]/70">
+                          {flowData.length > 0
+                            ? `Most common path: ${flowData[0].path.join(' → ')} (${flowData[0].percentage}% of users)`
+                            : 'Run test sessions to discover navigation patterns and drop-off points.'
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Everything else — collapsed by default, so raw data
+                        never competes with what needs action above. */}
+                    <div>
+                      <button
+                        onClick={() => setShowAllSections((prev) => !prev)}
+                        className="flex items-center gap-1 text-sm font-semibold text-[#4262ff] hover:underline"
+                      >
+                        {showAllSections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {showAllSections ? 'Hide' : 'Show'} all data{sectionInsights.length > 0 ? ` (${sectionInsights.length} sections)` : ''}
+                      </button>
+                      {showAllSections && (
+                        <div className="mt-4 space-y-8">
+                          {restSections.length > 0 && (
+                            <div className="space-y-3">
+                              {restSections.map(renderSectionCard)}
+                            </div>
+                          )}
+
+                          {/* Session Info */}
+                          <div>
+                            <h3 className="text-base font-semibold text-[#050038] mb-3">Session Overview</h3>
+                            <div className="bg-[#fafafa] p-4 rounded-lg space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-[#050038]/60">Total Sessions:</span>
+                                <span className="font-semibold text-[#050038]">{statsSessions}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#050038]/60">Participants:</span>
+                                <span className="font-semibold text-[#050038]">{selectedTest.participants.current} / {selectedTest.participants.target}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#050038]/60">Type:</span>
+                                <span className="font-semibold text-[#050038] capitalize">{selectedTest.type.replace('-', ' ')}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* First-Click Analysis */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-4">
+                              <h3 className="text-base font-semibold text-[#050038]">Element Analysis</h3>
+                              <Info size={14} className="text-[#050038]/60" />
+                            </div>
+                            {firstClickData.length > 0 ? (
+                              <div className="h-48 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart layout="vertical" data={firstClickData} margin={{ left: 0, right: 30 }}>
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12, fill: '#050038' }} axisLine={false} tickLine={false} />
+                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(5,0,56,0.1)' }} />
+                                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                                      {firstClickData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                      ))}
+                                    </Bar>
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            ) : (
+                              <div className="bg-[#fafafa] p-4 rounded-lg text-center">
+                                <p className="text-sm text-[#050038]/60">No interaction data yet. Start a test session to collect data.</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
-              </div>
-            )}
-
-            {/* ═══ AI INSIGHTS TAB ═══ */}
-            {activeTab === 'ai' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                {/* Generate Button */}
-                <Button
-                  onClick={handleGenerateInsights}
-                  disabled={aiLoading}
-                  className="w-full justify-center"
-                >
-                  {aiLoading ? (
-                    <><Loader2 size={14} className="mr-2 animate-spin" /> Generating insights...</>
-                  ) : (
-                    <><Lightbulb size={14} className="mr-2" /> Generate AI Insights</>
-                  )}
-                </Button>
-
-                {aiLoading ? (
-                  <div className="space-y-4">
-                    <div className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm animate-pulse">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="h-6 w-6 bg-[#050038]/10 rounded-full"></div>
-                        <div className="h-4 w-16 bg-[#050038]/10 rounded"></div>
-                      </div>
-                      <div className="h-4 w-full bg-[#050038]/10 rounded mb-2"></div>
-                      <div className="h-4 w-3/4 bg-[#050038]/10 rounded mb-6"></div>
-                      <div className="h-3 w-32 bg-[#050038]/10 rounded mb-3"></div>
-                      <div className="space-y-2 mb-6">
-                        <div className="h-3 w-5/6 bg-[#050038]/10 rounded"></div>
-                        <div className="h-3 w-4/6 bg-[#050038]/10 rounded"></div>
-                      </div>
-                      <div className="h-5 w-20 bg-[#050038]/10 rounded-full"></div>
-                    </div>
-                  </div>
-                ) : aiError ? (
-                  <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-center">
-                    <AlertTriangle size={32} className="mx-auto mb-4 text-red-500" />
-                    <h3 className="text-base font-semibold text-red-700 mb-2">Analysis failed to generate</h3>
-                    <p className="text-sm text-red-600 mb-4">{aiError}</p>
-                    {aiError?.includes('Settings') ? (
-                      <Button onClick={() => {
-                        if (onNavigate) {
-                          onNavigate('settings');
-                        } else {
-                          window.location.href = '/settings';
-                        }
-                      }} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
-                        <Settings size={14} className="mr-2" /> Go to Settings
-                      </Button>
-                    ) : (
-                      <Button onClick={handleGenerateInsights} variant="secondary" className="bg-white hover:bg-red-50 text-red-700 border-red-200">
-                        <RefreshCw size={14} className="mr-2" /> Retry Analysis
-                      </Button>
-                    )}
-                  </div>
-                ) : aiInsights.length === 0 ? (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Lightbulb size={32} className="mx-auto mb-4 text-[#ffd02f]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No insights yet</h3>
-                    <p className="text-sm text-[#050038]/60">
-                      Click "Generate AI Insights" to analyze your test sessions.
-                      The AI will review participant behavior and provide actionable recommendations.
-                    </p>
-                  </div>
-                ) : null}
-
-                {/* Real insight cards */}
-                {aiInsights.map((insight, idx) => (
-                  <div key={insight._id || idx} className="bg-white border border-[#050038]/10 p-6 rounded-xl shadow-sm">
-                    <div className="flex items-start justify-between mb-4">
-                      <Lightbulb className="text-[#ffd02f] flex-shrink-0" size={24} />
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-[#050038]/40">{insight.provider}</span>
-                          {insight.cost > 0 && (
-                            <span className="text-xs text-[#050038]/40">${insight.cost.toFixed(4)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {insight.lowConfidence && (
-                      <div className="mb-4 flex items-start gap-2 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800 border border-yellow-200">
-                        <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
-                        <p><strong>Low Confidence:</strong> The AI may have referenced elements that are not explicitly text on your board. Please verify the findings manually.</p>
-                      </div>
-                    )}
-                    <p className="text-sm text-[#050038]/70 leading-relaxed mb-4">{insight.insights.summary}</p>
-                    {insight.insights.patterns.length > 0 && (
-                      <div className="mb-4">
-                        <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Patterns detected:</span>
-                        <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
-                          {insight.insights.patterns.map((p, i) => <li key={i}>{p}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {insight.insights.recommendations.length > 0 && (
-                      <div className="mb-4">
-                        <span className="text-xs font-semibold text-[#050038]/60 block mb-2">Recommendations:</span>
-                        <ul className="text-sm text-[#050038]/70 space-y-1 list-disc pl-4">
-                          {insight.insights.recommendations.map((r, i) => <li key={i}>{r}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-full text-xs font-semibold",
-                        insight.insights.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
-                          insight.insights.sentiment === 'negative' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                      )}>
-                        {insight.insights.sentiment}
-                      </span>
-                      <span className="text-xs text-[#050038]/40">
-                        {new Date(insight.generatedAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-4">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => { setShowAiOnBoard(!showAiOnBoard); toast.info(showAiOnBoard ? 'Insight hidden from board' : 'Insight shown on board'); }}
-                      >
-                        {showAiOnBoard ? 'Hide from board' : 'Show on board'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
 
@@ -1368,125 +1535,6 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
               </div>
             )}
 
-            {/* ═══ SECTIONS TAB ═══ */}
-            {activeTab === 'sections' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div>
-                  <h3 className="text-base font-semibold text-[#050038] mb-1">Section Insights</h3>
-                  <p className="text-sm text-[#050038]/60 mb-2">
-                    Per-section reach, dwell, and backtracking — classified with a confidence score, never guessed.
-                  </p>
-                  {!sectionsLoading && sectionInsights.length > 0 && (
-                    <p className="text-xs text-[#050038]/40">
-                      {sectionsMode === 'guided'
-                        ? 'Guided walkthrough — sections are the tasks you defined for this test.'
-                        : 'Free exploration — sections are this board\'s Miro frames.'}
-                    </p>
-                  )}
-                </div>
-
-                {sectionsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-[#4262ff]" />
-                    <span className="ml-2 text-sm text-[#050038]/60">Loading section insights...</span>
-                  </div>
-                ) : sectionInsights.length > 0 ? (
-                  <div className="space-y-3">
-                    {sectionInsights.map((section) => {
-                      const meta = SECTION_OUTCOME_META[section.outcome];
-                      return (
-                        <div key={section.frameId} className="rounded-lg bg-white border border-[#050038]/10 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <span className="text-xs font-mono text-[#050038]/40">#{section.order + 1}</span>
-                              <span className="ml-2 text-sm font-medium text-[#050038]">{section.label}</span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", meta.badgeClass)}>
-                                {meta.label}
-                              </span>
-                              <span className="text-xs text-[#050038]/40">{Math.round(section.confidence * 100)}% confidence</span>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#050038]/60">
-                            <span>Reached: {section.reachedCount}/{section.totalSessions} ({Math.round(section.reachedRatio * 100)}%)</span>
-                            <span>Avg dwell: {formatMs(section.avgDwellMs)}</span>
-                            {section.backtrackCount > 0 && <span>Backtracks: {section.backtrackCount}</span>}
-                            {section.avgInteractionDensity !== null && <span>Avg interactions: {section.avgInteractionDensity}/session</span>}
-                          </div>
-                          <p className="mt-2 text-sm text-[#050038]/70">{section.explanation}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No section data yet</h3>
-                    <p className="text-sm text-[#050038]/60">
-                      Section insights will appear once participants have completed sessions on a board with defined tasks or frames.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ═══ FLOW TAB ═══ */}
-            {activeTab === 'flow' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div>
-                  <h3 className="text-base font-semibold text-[#050038] mb-3">Task Flow Analysis</h3>
-                  <p className="text-sm text-[#050038]/60 mb-4">User navigation paths through the prototype</p>
-                </div>
-
-                {flowLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-[#4262ff]" />
-                    <span className="ml-2 text-sm text-[#050038]/60">Loading flow data...</span>
-                  </div>
-                ) : flowData.length > 0 ? (
-                  <div className="space-y-3">
-                    {flowData.map((flow, i) => (
-                      <div key={i}>
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 rounded-lg bg-white border border-[#050038]/10 p-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-[#050038]">{flow.path.join(' → ')}</span>
-                              <span className="text-sm font-bold text-[#4262ff]">{flow.percentage}%</span>
-                            </div>
-                            <div className="mt-2 h-2 rounded-full bg-[#050038]/10">
-                              <div className="h-full rounded-full bg-[#4262ff] transition-all" style={{ width: `${flow.percentage}%` }} />
-                            </div>
-                            <span className="text-xs text-[#050038]/40 mt-1 block">{flow.count} sessions</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-[#fafafa] p-8 rounded-xl text-center">
-                    <Layers size={32} className="mx-auto mb-4 text-[#4262ff]" />
-                    <h3 className="text-base font-semibold text-[#050038] mb-2">No flow data yet</h3>
-                    <p className="text-sm text-[#050038]/60">
-                      Flow analysis will appear after participants complete test sessions.
-                    </p>
-                  </div>
-                )}
-
-                <div className="bg-[#fafafa] p-4 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target size={14} className="text-[#4262ff]" />
-                    <span className="text-sm font-semibold text-[#050038]">Key Insight</span>
-                  </div>
-                  <p className="text-sm text-[#050038]/70">
-                    {flowData.length > 0
-                      ? `Most common path: ${flowData[0].path.join(' → ')} (${flowData[0].percentage}% of users)`
-                      : 'Run test sessions to discover navigation patterns and drop-off points.'
-                    }
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

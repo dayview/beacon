@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import { body } from 'express-validator';
 import Session from '../models/Session.js';
 import Board from '../models/Board.js';
 import Test from '../models/Test.js';
 import auth from '../middleware/auth.js';
 import { authorizeTestOwner } from '../middleware/authorize.js';
 import { objectIdParam, validate } from '../middleware/validation.js';
+import { SECTION_OUTCOMES } from '../constants/sectionOutcomes.js';
 import { detectConfusionZones, getDwellTimeSummary } from '../services/confusionService.js';
 import { computeNavigationPaths, computeScrollDepth } from '../services/flowService.js';
 import {
@@ -121,6 +123,55 @@ router.get(
         } catch (error) {
             console.error(`[${new Date().toISOString()}] Section insights error:`, error);
             res.status(500).json({ error: 'Failed to compute section insights.' });
+        }
+    }
+);
+
+// ── PATCH /api/analytics/:testId/sections/:frameId/override ──
+// The test owner confirms or corrects a section's classified outcome.
+// One override per frameId — resubmitting replaces the prior entry.
+router.patch(
+    '/:testId/sections/:frameId/override',
+    auth,
+    objectIdParam('testId'),
+    body('outcome')
+        .isIn(Object.values(SECTION_OUTCOMES))
+        .withMessage('Invalid outcome value'),
+    body('note').optional({ nullable: true }).isString(),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const { frameId } = req.params;
+            const { outcome, note } = req.body;
+            req.test.sectionOverrides = req.test.sectionOverrides.filter((o) => o.frameId !== frameId);
+            req.test.sectionOverrides.push({ frameId, outcome, note: note || null, overriddenAt: new Date() });
+            await req.test.save();
+            res.json({ frameId, outcome, note: note || null });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Section override error:`, error);
+            res.status(500).json({ error: 'Failed to save section override.' });
+        }
+    }
+);
+
+// ── DELETE /api/analytics/:testId/sections/:frameId/override ─
+// Clears an override, reverting the section to its auto-classification.
+router.delete(
+    '/:testId/sections/:frameId/override',
+    auth,
+    objectIdParam('testId'),
+    validate,
+    authorizeTestOwner('testId'),
+    async (req, res) => {
+        try {
+            const { frameId } = req.params;
+            req.test.sectionOverrides = req.test.sectionOverrides.filter((o) => o.frameId !== frameId);
+            await req.test.save();
+            res.json({ frameId });
+        } catch (error) {
+            console.error(`[${new Date().toISOString()}] Section override clear error:`, error);
+            res.status(500).json({ error: 'Failed to clear section override.' });
         }
     }
 );

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { SECTION_OUTCOMES } from '../constants/sectionOutcomes.js';
 
 const taskSchema = new mongoose.Schema({
     id: { type: String },
@@ -6,6 +7,16 @@ const taskSchema = new mongoose.Schema({
     targetElement: { type: String },
     successCriteria: { type: String },
     order: { type: Number },
+}, { _id: false });
+
+// The owner's own read on a section, confirming or correcting
+// sectionInsightsService's classifier. One entry per frameId; setting
+// again replaces the existing entry rather than appending.
+const sectionOverrideSchema = new mongoose.Schema({
+    frameId: { type: String, required: true },
+    outcome: { type: String, enum: Object.values(SECTION_OUTCOMES), required: true },
+    note: { type: String, default: null },
+    overriddenAt: { type: Date, default: Date.now },
 }, { _id: false });
 
 const testSchema = new mongoose.Schema({
@@ -35,6 +46,7 @@ const testSchema = new mongoose.Schema({
         default: 'draft',
     },
     tasks: [taskSchema],
+    sectionOverrides: [sectionOverrideSchema],
     settings: {
         recordScreen: { type: Boolean, default: false },
         captureEvents: { type: Boolean, default: true },
