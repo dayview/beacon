@@ -46,9 +46,25 @@ import { SECTION_OUTCOMES } from '../constants/sectionOutcomes.js';
  * is exactly the kind of dwell-like signal free exploration otherwise has
  * no way to see (it has no dwellMs at all, only click/hover counts).
  *
+ * A fourth signal, reading order, is also derived for free-exploration
+ * sections: frames are sorted top-to-bottom then left-to-right by their
+ * Board.elements bounds to get a canonical reading order, and each
+ * session's actual visit sequence is compared against it. Returning to a
+ * section whose canonical index is behind the furthest point already
+ * reached counts as a backtrack against that section — the same
+ * `backtrackCount` guided mode already gets from explicit backward
+ * task_complete events, just derived instead of captured. It only ever
+ * resolves to the existing `repeated_navigation` outcome (never
+ * `likely_confusion`), mirroring guided mode's own typical-dwell+backtrack
+ * rule rather than inventing new corroboration logic. If any section's
+ * frame is missing bounds, the whole signal is skipped for that test
+ * rather than guessed from an order that can't actually be determined.
+ *
  * What this does NOT claim to use, because the app doesn't capture it:
- * zoom-repeat or reading order. Bowei named these alongside idle time as
- * useful signals — they're not fabricated here.
+ * zoom-repeat. Bowei named this alongside idle time and reading order as
+ * a useful signal — it's not fabricated here. Unlike the other three, it
+ * would need new capture (Miro's SDK has no zoom-change event, only
+ * poll-only getZoom()), not just new analysis of what's already stored.
  */
 
 const OUTCOMES = SECTION_OUTCOMES;
@@ -80,7 +96,13 @@ function round2(n) {
  * it never claims confusion: without dwell or backtracking data there's no
  * way to distinguish "confused" from "not engaged" beyond low density.
  */
-function classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity, avgIdleMs, medianIdleMs }) {
+function classifyByInteractionDensity({
+    avgInteractionDensity,
+    medianInteractionDensity,
+    avgIdleMs,
+    medianIdleMs,
+    backtrackCount,
+}) {
     if (avgInteractionDensity === null || medianInteractionDensity === null || medianInteractionDensity === 0) {
         return {
             outcome: OUTCOMES.NORMAL,
@@ -106,6 +128,14 @@ function classifyByInteractionDensity({ avgInteractionDensity, medianInteraction
             outcome: OUTCOMES.INSUFFICIENT_ATTENTION,
             confidence: round2(Math.min(0.7, 0.3 + (0.5 - densityRatio))),
             explanation: `Interaction density is ${pctBelow}% below the test's median — participants likely passed through this section with little engagement.`,
+        };
+    }
+
+    if (backtrackCount > 0) {
+        return {
+            outcome: OUTCOMES.REPEATED_NAVIGATION,
+            confidence: round2(Math.min(1, 0.4 + backtrackCount * 0.15)),
+            explanation: `${backtrackCount} participant(s) navigated back to this section after already moving past it in the board's layout order, even though interaction levels here were typical.`,
         };
     }
 
@@ -163,7 +193,13 @@ function classifySection({
     const hasDwellSignal = avgDwellMs !== null && medianDwellMs !== null && medianDwellMs > 0;
 
     if (!hasDwellSignal) {
-        return classifyByInteractionDensity({ avgInteractionDensity, medianInteractionDensity, avgIdleMs, medianIdleMs });
+        return classifyByInteractionDensity({
+            avgInteractionDensity,
+            medianInteractionDensity,
+            avgIdleMs,
+            medianIdleMs,
+            backtrackCount,
+        });
     }
 
     const dwellRatio = avgDwellMs / medianDwellMs;
@@ -265,6 +301,23 @@ export async function generateSectionInsights(testId, filters = {}) {
     const usableSessions = sessions.filter((s) => (s.events || []).length > 0);
     const totalSessions = usableSessions.length;
 
+    // Canonical reading order — top-to-bottom, then left-to-right by each
+    // frame's board position. Only meaningful (and only computed) when
+    // every section's frame actually has bounds; a board synced without
+    // position data has no real reading order to compare against.
+    const allSectionsHaveBounds = mode === 'free' && sectionIds.every((id) => {
+        const el = boardFrames.find((e) => e.miroId === id);
+        return el && typeof el.bounds?.x === 'number' && typeof el.bounds?.y === 'number';
+    });
+    const canonicalIndexByFrameId = allSectionsHaveBounds
+        ? new Map(
+            [...boardFrames]
+                .filter((e) => sectionIds.includes(e.miroId))
+                .sort((a, b) => (a.bounds.y - b.bounds.y) || (a.bounds.x - b.bounds.x))
+                .map((e, idx) => [e.miroId, idx])
+        )
+        : null;
+
     const stats = new Map(sectionIds.map((id) => [id, {
         reachedSessionIds: new Set(),
         dwellSamples: [],
@@ -313,6 +366,27 @@ export async function generateSectionInsights(testId, filters = {}) {
             const gap = new Date(curr.timestamp) - new Date(prev.timestamp);
             if (gap >= IDLE_GAP_THRESHOLD_MS) {
                 stats.get(curr.frameId).idleSamples.push(gap);
+            }
+        }
+
+        // Reading-order backtracks — only from raw browsing events
+        // (task_complete's own direction field already covers guided mode).
+        // Consecutive events on the same frame are one visit; a visit whose
+        // canonical index is behind the furthest index already reached in
+        // this session is a backtrack, attributed to the section revisited.
+        if (canonicalIndexByFrameId) {
+            let maxIndexReached = -1;
+            let lastVisitFrameId = null;
+            for (const event of sortedEvents) {
+                if (event.type === 'task_complete' || event.frameId === lastVisitFrameId) continue;
+                lastVisitFrameId = event.frameId;
+                const canonicalIndex = canonicalIndexByFrameId.get(event.frameId);
+                if (canonicalIndex === undefined) continue;
+                if (canonicalIndex < maxIndexReached) {
+                    stats.get(event.frameId).backtrackCount += 1;
+                } else {
+                    maxIndexReached = canonicalIndex;
+                }
             }
         }
     }
