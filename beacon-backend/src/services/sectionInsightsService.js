@@ -60,11 +60,19 @@ import { SECTION_OUTCOMES } from '../constants/sectionOutcomes.js';
  * frame is missing bounds, the whole signal is skipped for that test
  * rather than guessed from an order that can't actually be determined.
  *
- * What this does NOT claim to use, because the app doesn't capture it:
- * zoom-repeat. Bowei named this alongside idle time and reading order as
- * a useful signal — it's not fabricated here. Unlike the other three, it
- * would need new capture (Miro's SDK has no zoom-change event, only
- * poll-only getZoom()), not just new analysis of what's already stored.
+ * A fifth signal, zoom-repeat, is the one signal here that needed new
+ * capture rather than new analysis: MiroPanel polls the board's zoom level
+ * (there's no zoom-change event in Miro's SDK, only poll-only getZoom())
+ * and emits a `zoom` event whenever it actually changes. For a run of
+ * consecutive same-frame zoom samples, a direction reversal (zooming in
+ * then out, or out then in) is counted — repeatedly zooming in and out on
+ * one section reads as "can't parse this at a glance," the same
+ * ambiguous-pause idea idle time captures for stillness instead of motion.
+ * Like idle time, it only ever demotes an otherwise-normal free-exploration
+ * section to `prolonged_dwell`, never to `likely_confusion`.
+ *
+ * All six signals Bowei named (dwell, backtracking, click density, idle
+ * time, reading order, zoom-repeat) are implemented as of this writing.
  */
 
 const OUTCOMES = SECTION_OUTCOMES;
@@ -102,6 +110,8 @@ function classifyByInteractionDensity({
     avgIdleMs,
     medianIdleMs,
     backtrackCount,
+    avgZoomReversals,
+    medianZoomReversals,
 }) {
     if (avgInteractionDensity === null || medianInteractionDensity === null || medianInteractionDensity === 0) {
         return {
@@ -152,6 +162,18 @@ function classifyByInteractionDensity({
         }
     }
 
+    const hasZoomSignal = avgZoomReversals !== null && medianZoomReversals !== null && medianZoomReversals > 0;
+    if (hasZoomSignal) {
+        const zoomRatio = avgZoomReversals / medianZoomReversals;
+        if (zoomRatio > 1.5) {
+            return {
+                outcome: OUTCOMES.PROLONGED_DWELL,
+                confidence: 0.3,
+                explanation: `Participants zoomed in and out on this section an average of ${avgZoomReversals} time(s) — well above the test's typical zoom-reversal rate. Could mean the content was hard to parse at a glance, or just careful reading; flagged for your review rather than guessed.`,
+            };
+        }
+    }
+
     return {
         outcome: OUTCOMES.NORMAL,
         confidence: 0.4,
@@ -173,6 +195,8 @@ function classifySection({
     medianInteractionDensity,
     avgIdleMs,
     medianIdleMs,
+    avgZoomReversals,
+    medianZoomReversals,
 }) {
     if (reachedRatio === 0) {
         return {
@@ -199,6 +223,8 @@ function classifySection({
             avgIdleMs,
             medianIdleMs,
             backtrackCount,
+            avgZoomReversals,
+            medianZoomReversals,
         });
     }
 
@@ -324,6 +350,7 @@ export async function generateSectionInsights(testId, filters = {}) {
         backtrackCount: 0,
         interactionDensities: [],
         idleSamples: [],
+        zoomReversalSamples: [],
     }]));
 
     for (const session of usableSessions) {
@@ -389,6 +416,58 @@ export async function generateSectionInsights(testId, filters = {}) {
                 }
             }
         }
+
+        // Zoom-reversal count — a run of consecutive same-frame zoom
+        // samples with at least one direction change (zoom-in, then out, or
+        // vice versa). A run needs >=2 zoom samples for a direction to even
+        // exist; runs with fewer are skipped rather than counted as zero,
+        // since "no reversal" and "no data" aren't the same thing. Leaving
+        // the frame resets tracking — a fresh visit starts a fresh run.
+        {
+            const zoomEvents = sortedEvents.filter((e) => e.type === 'zoom' && stats.has(e.frameId));
+            const reversalsByFrame = new Map();
+            let runFrameId = null;
+            let runSampleCount = 0;
+            let runReversals = 0;
+            let lastZoom = null;
+            let lastDirection = 0;
+
+            const flushRun = () => {
+                if (runFrameId !== null && runSampleCount >= 2) {
+                    reversalsByFrame.set(runFrameId, (reversalsByFrame.get(runFrameId) || 0) + runReversals);
+                }
+            };
+
+            for (const event of zoomEvents) {
+                if (event.frameId !== runFrameId) {
+                    flushRun();
+                    runFrameId = event.frameId;
+                    runSampleCount = 0;
+                    runReversals = 0;
+                    lastZoom = null;
+                    lastDirection = 0;
+                }
+                const zoom = event.metadata?.zoom;
+                if (typeof zoom !== 'number') continue;
+                runSampleCount += 1;
+                if (lastZoom !== null) {
+                    const delta = zoom - lastZoom;
+                    const direction = delta > 0 ? 1 : delta < 0 ? -1 : 0;
+                    if (direction !== 0) {
+                        if (lastDirection !== 0 && direction !== lastDirection) {
+                            runReversals += 1;
+                        }
+                        lastDirection = direction;
+                    }
+                }
+                lastZoom = zoom;
+            }
+            flushRun();
+
+            for (const [frameId, count] of reversalsByFrame) {
+                stats.get(frameId).zoomReversalSamples.push(count);
+            }
+        }
     }
 
     // Baseline dwell for this test — sections are judged relative to their
@@ -415,6 +494,16 @@ export async function generateSectionInsights(testId, filters = {}) {
         .map(average);
     const medianIdleMs = sectionAvgIdles.length > 0 ? median(sectionAvgIdles) : null;
 
+    // Same idea for zoom reversals — unlike idle gaps, a genuinely-measured
+    // zero (a run with no direction change) is itself a real data point, so
+    // it's included in the baseline rather than filtered out like idle's
+    // threshold-gated samples are.
+    const sectionAvgZoomReversals = sectionIds
+        .map((id) => stats.get(id).zoomReversalSamples)
+        .filter((samples) => samples.length > 0)
+        .map(average);
+    const medianZoomReversals = sectionAvgZoomReversals.length > 0 ? median(sectionAvgZoomReversals) : null;
+
     const sections = sectionIds.map((frameId, order) => {
         const s = stats.get(frameId);
         const reachedCount = s.reachedSessionIds.size;
@@ -424,6 +513,7 @@ export async function generateSectionInsights(testId, filters = {}) {
             ? round2(average(s.interactionDensities))
             : null;
         const avgIdleMs = s.idleSamples.length > 0 ? Math.round(average(s.idleSamples)) : null;
+        const avgZoomReversals = s.zoomReversalSamples.length > 0 ? round2(average(s.zoomReversalSamples)) : null;
 
         const classification = classifySection({
             reachedRatio,
@@ -434,6 +524,8 @@ export async function generateSectionInsights(testId, filters = {}) {
             medianInteractionDensity,
             avgIdleMs,
             medianIdleMs,
+            avgZoomReversals,
+            medianZoomReversals,
         });
 
         const override = overridesByFrameId.get(frameId) || null;
@@ -449,6 +541,7 @@ export async function generateSectionInsights(testId, filters = {}) {
             backtrackCount: s.backtrackCount,
             avgInteractionDensity,
             avgIdleMs,
+            avgZoomReversals,
             ...classification,
             override: override
                 ? {

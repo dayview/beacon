@@ -128,6 +128,44 @@ export const MiroPanel: React.FC = () => {
         };
     }, [isConnected]);
 
+    // 5. Miro SDK event tracking — zoom-repeat
+    // Miro's SDK has no zoom-change event, only poll-only getZoom(), so this
+    // polls on an interval and only emits when the zoom level actually
+    // changed since the last sample — event volume tracks real zoom
+    // actions, not the poll cadence. Coordinates carry the viewport's
+    // center (same absolute board space as click/hover) so the backend
+    // resolves a frameId the same way it does for cursor hovers.
+    const lastZoomRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (!isConnected) return;
+
+        const interval = setInterval(async () => {
+            if (!sessionIdRef.current || !socketRef.current) return;
+
+            try {
+                const [zoom, viewport] = await Promise.all([
+                    miro.board.viewport.getZoom(),
+                    miro.board.viewport.get(),
+                ]);
+                if (zoom === lastZoomRef.current) return;
+                lastZoomRef.current = zoom;
+
+                socketRef.current.emit('session:event', {
+                    sessionId: sessionIdRef.current,
+                    type: 'zoom',
+                    coordinates: { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 },
+                    timestamp: Date.now(),
+                    element: null,
+                    metadata: { zoom },
+                });
+            } catch (err) {
+                console.error('[MiroPanel] zoom poll error:', err);
+            }
+        }, 1500);
+
+        return () => clearInterval(interval);
+    }, [isConnected]);
+
     return (
         <div className="flex items-center justify-center min-h-screen bg-[#fafafa]">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#050038]/10 bg-white shadow-sm">

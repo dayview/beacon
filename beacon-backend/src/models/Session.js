@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const eventSchema = new mongoose.Schema({
     type: {
         type: String,
-        enum: ['click', 'hover', 'scroll', 'task_complete'],
+        enum: ['click', 'hover', 'scroll', 'task_complete', 'zoom'],
     },
     timestamp: { type: Date, default: Date.now },
     coordinates: {

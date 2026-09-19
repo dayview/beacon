@@ -414,6 +414,7 @@ export interface ApiSectionInsight {
     backtrackCount: number;
     avgInteractionDensity: number | null;
     avgIdleMs: number | null;
+    avgZoomReversals: number | null;
     outcome: ApiSectionOutcome;
     confidence: number; // 0-1
     explanation: string;

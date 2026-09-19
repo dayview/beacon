@@ -709,6 +709,9 @@ export const LiveAnalytics: React.FC<LiveAnalyticsProps> = ({ onBack, onNavigate
           {section.backtrackCount > 0 && <span>Backtracks: {section.backtrackCount}</span>}
           {section.avgInteractionDensity !== null && <span>Avg interactions: {section.avgInteractionDensity}/session</span>}
           {section.avgIdleMs !== null && <span>Avg idle gap: {formatMs(section.avgIdleMs)}</span>}
+          {section.avgZoomReversals !== null && section.avgZoomReversals > 0 && (
+            <span>Avg zoom reversals: {section.avgZoomReversals}</span>
+          )}
         </div>
         <p className="mt-2 text-sm text-[#050038]/70">{section.explanation}</p>
         {section.override?.note && (
