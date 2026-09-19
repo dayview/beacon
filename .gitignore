@@ -9,3 +9,4 @@ dist
 .env.test
 .env.production
 !.env.example
+.planning/
