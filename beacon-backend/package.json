@@ -4,6 +4,7 @@
     "type": "module",
     "description": "Backend server for Beacon usability testing platform",
     "main": "src/server.js",
+    "license": "AGPL-3.0-or-later",
     "scripts": {
         "start": "node src/server.js",
         "dev": "node --watch src/server.js",
